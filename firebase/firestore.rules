@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow read/write for all application collections so Admin panel and live registration sync seamlessly
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /volunteers/{volunteerId} {
+      allow read, write: if true;
+    }
+
+    match /participants/{participantId} {
+      allow read, write: if true;
+    }
+
+    match /events/{eventId} {
+      allow read, write: if true;
+    }
+    
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+    
+    match /colleges/{collegeId} {
+      allow read, write: if true;
+    }
+    
+    match /faqs/{faqId} {
+      allow read, write: if true;
+    }
+    
+    match /gallery/{galleryId} {
+      allow read, write: if true;
+    }
+    
+    match /symposiums/{symposiumId} {
+      allow read, write: if true;
+    }
+
+    match /announcements/{announcementId} {
+      allow read, write: if true;
+    }
+
+    match /certificates/{certificateId} {
+      allow read, write: if true;
+    }
+
+    match /teams/{teamId} {
+      allow read, write: if true;
+    }
+
+    match /stalls/{stallId} {
+      allow read, write: if true;
+    }
+
+    match /activity_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /food_tokens/{tokenId} {
+      allow read, write: if true;
+    }
+
+    match /refreshment_tokens/{tokenId} {
+      allow read, write: if true;
+    }
+
+    match /refreshment_txns/{txnId} {
+      allow read, write: if true;
+    }
+
+    match /results/{resultId} {
+      allow read, write: if true;
+    }
+
+    match /join_requests/{requestId} {
+      allow read, write: if true;
+    }
+    
+    match /feedbacks/{feedbackId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
