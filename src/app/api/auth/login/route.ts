@@ -33,57 +33,34 @@ export async function POST(req: NextRequest) {
       phone?: string;
     } | null = null;
 
-    // 1. Check Server-Side Master Staff Credentials (SHA-256 protected, never exposed to client)
-    if (isServerStaff(loginIdentifier)) {
-      const staffMatch = await authenticateServerStaff(loginIdentifier, loginPassword);
-      if (staffMatch) {
-        authenticatedUser = staffMatch;
-      } else {
-        // Staff accounts MUST strictly authenticate against server hashes - never fallback to stale Firestore documents!
-        return NextResponse.json(
-          { error: "Invalid credentials. Please verify your email/ID and passcode." },
-          { status: 401 }
-        );
-      }
-    }
+    const inputHash = await sha256Async(loginPassword);
 
-    // 2. If not a master staff account, search Firestore (for registered students, judges, volunteers)
-    if (!authenticatedUser && isFirebaseConfigured && db) {
+    // 1. Search Firestore first (reflects any updated passwords set by Admin for ANY user)
+    if (isFirebaseConfigured && db) {
       try {
-        const inputHash = await sha256Async(loginPassword);
-
-        // Check direct document ID lookup first
+        // 1.1 Direct document ID lookup
         const directDoc = await getDoc(doc(db, "users", loginIdentifier));
         if (directDoc.exists()) {
           const data: any = directDoc.data();
-          // Never allow administrative staff accounts to authenticate via stale Firestore documents
-          const isStaffRole = data.role === "super_admin" || data.role === "admin" || data.role === "coordinator";
-          if (!isStaffRole) {
-            const storedPass = String(data.password || "");
-            const storedHash = /^[a-f0-9]{64}$/i.test(storedPass) ? storedPass.toLowerCase() : await sha256Async(storedPass);
-            if (storedHash === inputHash.toLowerCase()) {
-              authenticatedUser = {
-                id: directDoc.id,
-                email: data.email || loginIdentifier,
-                name: data.name || "User",
-                role: data.role || "student",
-                department: data.department,
-                phone: data.phone
-              };
-            }
+          const storedPass = String(data.password || "");
+          const storedHash = /^[a-f0-9]{64}$/i.test(storedPass) ? storedPass.toLowerCase() : await sha256Async(storedPass);
+          if (storedHash === inputHash.toLowerCase()) {
+            authenticatedUser = {
+              id: directDoc.id,
+              email: data.email || loginIdentifier,
+              name: data.name || "User",
+              role: data.role || "student",
+              department: data.department,
+              phone: data.phone
+            };
           }
         }
 
-        // Query users collection by email / participantId / phone
+        // 1.2 Query users collection by email / participantId / phone
         if (!authenticatedUser) {
           const snap = await getDocs(collection(db, "users"));
           for (const d of snap.docs) {
             const data: any = d.data();
-            // Never allow administrative staff accounts to authenticate via stale Firestore documents
-            if (data.role === "super_admin" || data.role === "admin" || data.role === "coordinator") {
-              continue;
-            }
-
             const dEmail = (data.email || "").toLowerCase().trim();
             const dPid = (data.participantId || data.id || "").toLowerCase().trim();
             const dReg = (data.registrationId || "").toLowerCase().trim();
@@ -103,7 +80,7 @@ export async function POST(req: NextRequest) {
                   id: d.id,
                   email: data.email || loginIdentifier,
                   name: data.name || "User",
-                  role: data.role || "student",
+                  role: data.role || (isServerStaff(loginIdentifier) ? "admin" : "student"),
                   department: data.department,
                   phone: data.phone
                 };
@@ -114,6 +91,14 @@ export async function POST(req: NextRequest) {
         }
       } catch (firestoreErr) {
         console.warn("Firestore query error during login:", firestoreErr);
+      }
+    }
+
+    // 2. Fallback to Server-Side Master Staff Credentials (for initial faculty accounts before admin edits)
+    if (!authenticatedUser && isServerStaff(loginIdentifier)) {
+      const staffMatch = await authenticateServerStaff(loginIdentifier, loginPassword);
+      if (staffMatch) {
+        authenticatedUser = staffMatch;
       }
     }
 

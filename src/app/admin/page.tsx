@@ -6119,9 +6119,18 @@ export default function AdminDashboard() {
                                           ENCRYPTED
                                         </span>
                                       </div>
+                                    ) : !u.password ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <code className="font-mono text-[11px] bg-purple-50 border border-purple-200 text-blue-700 px-2 py-1 rounded font-bold">
+                                          🔒 Master Passcode
+                                        </code>
+                                        <span className="text-[9px] font-mono font-bold bg-purple-100 text-blue-700 px-1.5 py-0.5 rounded border border-purple-300">
+                                          PROTECTED
+                                        </span>
+                                      </div>
                                     ) : (
                                       <code className="font-mono text-xs bg-slate-100 border border-slate-200 px-2 py-1 rounded font-bold text-blue-700">
-                                        {u.password || "••••••••"}
+                                        {u.password}
                                       </code>
                                     )
                                   ) : (
