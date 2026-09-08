@@ -337,12 +337,12 @@ export default function SuperAdminDashboard() {
     e.preventDefault();
     if (!selectedStaffUser || !newStaffPassword.trim()) return;
     try {
-      mockDB.updateUserPassword(selectedStaffUser.id, newStaffPassword.trim(), currentUser?.name || "System Controller");
-      setPasswordToast(`✓ Password successfully reset for ${selectedStaffUser.name} (${selectedStaffUser.email})`);
+      await mockDB.updateUserPasswordAsync(selectedStaffUser.id, newStaffPassword.trim(), currentUser?.name || "System Controller");
+      setPasswordToast(`✓ Password successfully reset in Cloud Firestore for ${selectedStaffUser.name} (${selectedStaffUser.email})`);
       setSelectedStaffUser(null);
       setNewStaffPassword("");
       await mockDB.syncFromCloud(true);
-    loadData();
+      loadData();
       setTimeout(() => setPasswordToast(""), 4000);
     } catch (err: any) {
       alert(err.message || "Failed to update password.");

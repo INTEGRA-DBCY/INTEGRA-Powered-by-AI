@@ -1122,6 +1122,7 @@ export default function AdminDashboard() {
   const handleOpenEditVolunteer = (vol: DBUser) => {
     setVolFormData({
       ...vol,
+      password: "", // Blank so admin can set new password or leave blank to preserve current password
       volunteerDuty: vol.volunteerDuty || {
         station: "Gate Entry",
         venueName: "Campus Main Gate Entry",
@@ -1155,11 +1156,21 @@ export default function AdminDashboard() {
 
     setIsCloudSyncing(true);
     try {
+      let passToSave = volFormData.password?.trim();
+      if (!passToSave && volFormData.id) {
+        const existingVol = volunteers.find(v => v.id === volFormData.id) || users.find(u => u.id === volFormData.id);
+        passToSave = existingVol?.password || "volunteer123";
+      } else if (!passToSave) {
+        passToSave = "volunteer123";
+      }
+
       const volPayload = {
         ...volFormData,
+        password: passToSave,
         symposiumId: volFormData.symposiumId || activeSymposium?.id || "integra-2026"
       };
       await mockDB.saveVolunteerAsync(volPayload, currentUser?.name || "Admin Office");
+      await mockDB.syncFromCloud(true);
       setVolunteerModalOpen(false);
       fetchData();
       alert(`✓ Volunteer profile for ${volFormData.name} saved successfully in Cloud Firestore!`);
@@ -1175,8 +1186,11 @@ export default function AdminDashboard() {
       setIsCloudSyncing(true);
       try {
         await mockDB.deleteVolunteerAsync(id, currentUser?.name || "Admin Office");
+        await mockDB.syncFromCloud(true);
         fetchData();
         alert(`Volunteer ${name} removed from Cloud Firestore.`);
+      } catch (err: any) {
+        alert("Error removing volunteer: " + (err.message || err));
       } finally {
         setIsCloudSyncing(false);
       }
@@ -1213,29 +1227,36 @@ export default function AdminDashboard() {
     link.click();
   };
 
-  const handleUpdatePassword = (userId: string, newPass: string) => {
+  const handleUpdatePassword = async (userId: string, newPass: string) => {
     if (!newPass.trim()) return;
     const targetUser = users.find(u => u.id === userId);
     if (targetUser) {
-      const updated = { ...targetUser, password: newPass.trim() };
-      mockDB.updateUser(updated);
+      setIsCloudSyncing(true);
+      try {
+        await mockDB.updateUserPasswordAsync(userId, newPass.trim(), currentUser?.name || "Administrator");
 
-      // If stall operator, also sync the stall entity password
-      if (targetUser.role === "stall_operator" || targetUser.assignedStallId) {
-        const allStalls = mockDB.getRefreshmentStalls();
-        const stall = allStalls.find(s => s.id === targetUser.assignedStallId || s.assignedOperatorId === targetUser.id || s.operatorUsername?.toLowerCase() === targetUser.email.toLowerCase());
-        if (stall) {
-          mockDB.updateRefreshmentStall({
-            ...stall,
-            operatorPassword: newPass.trim()
-          }, currentUser?.name || "Admin");
+        // If stall operator, also sync the stall entity password
+        if (targetUser.role === "stall_operator" || targetUser.assignedStallId) {
+          const allStalls = mockDB.getRefreshmentStalls();
+          const stall = allStalls.find(s => s.id === targetUser.assignedStallId || s.assignedOperatorId === targetUser.id || s.operatorUsername?.toLowerCase() === targetUser.email.toLowerCase());
+          if (stall) {
+            await mockDB.updateRefreshmentStallAsync({
+              ...stall,
+              operatorPassword: newPass.trim()
+            }, currentUser?.name || "Admin");
+          }
         }
-      }
 
-      fetchData();
-      setEditingUserId(null);
-      setNewUserPassword("");
-      alert(`✓ Passcode for ${targetUser.name} (${targetUser.role}) updated successfully!`);
+        await mockDB.syncFromCloud(true);
+        fetchData();
+        setEditingUserId(null);
+        setNewUserPassword("");
+        alert(`✓ Passcode for ${targetUser.name} (${targetUser.role}) successfully synchronized to Cloud Firestore!`);
+      } catch (err: any) {
+        alert("Error updating passcode in Cloud Firestore: " + (err.message || err));
+      } finally {
+        setIsCloudSyncing(false);
+      }
     }
   };
 
@@ -7424,13 +7445,15 @@ export default function AdminDashboard() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold uppercase tracking-wider mb-1.5">Volunteer Portal Password *</label>
+                  <label className="block text-slate-700 font-mono text-[11px] font-bold uppercase tracking-wider mb-1.5">
+                    {volFormData.id ? "New Volunteer Password (leave blank to keep current)" : "Volunteer Portal Password *"}
+                  </label>
                   <input
                     type="text"
-                    value={volFormData.password || "volunteer"}
+                    value={volFormData.password || ""}
                     onChange={(e) => setVolFormData(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Enter Passcode"
-                    required
+                    placeholder={volFormData.id ? "Leave blank to keep existing passcode" : "Enter Passcode (e.g. volunteer123)"}
+                    required={!volFormData.id}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold placeholder-slate-500 bg-white border border-slate-300 font-mono focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 outline-none transition-all font-mono font-bold focus:ring-2 focus:ring-[#7C3AED]"
                   />
                 </div>

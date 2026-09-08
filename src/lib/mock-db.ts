@@ -1,4 +1,4 @@
-import { hashPasswordSync, sanitizeUser, sanitizeUsers } from "./security";
+import { hashPassword, hashPasswordSync, sanitizeUser, sanitizeUsers } from "./security";
 // Local Storage & Firebase Sync Database for Symposium Management Platform
 // Multi-Year / Multi-Symposium Architecture with Data Isolation, Offline Payments, Slot Clash Prevention, Food Tokens, and Activity Logging.
 
@@ -1124,6 +1124,12 @@ export const mockDB = {
     return symposium;
   },
 
+  updateSymposiumAsync: async (symposium: Symposium): Promise<Symposium> => {
+    mockDB.updateSymposium(symposium);
+    await firebaseService.saveSymposium(symposium);
+    return symposium;
+  },
+
   deleteSymposium: (id: string, adminName: string = "Super Admin") => {
     markDeletedId(id);
     const target = memoryStore.symposiums.find(s => s.id === id);
@@ -1334,10 +1340,14 @@ export const mockDB = {
   },
 
   updateUserAsync: async (user: User): Promise<void> => {
-    mockDB.updateUser(user);
-    await firebaseService.saveUser(user);
-    if (user.role === "student") {
-      await firebaseService.saveParticipant(user);
+    let clean = { ...user };
+    if (clean.password && !/^[a-f0-9]{64}$/i.test(clean.password)) {
+      clean.password = await hashPassword(clean.password);
+    }
+    mockDB.updateUser(clean);
+    await firebaseService.saveUser(clean);
+    if (clean.role === "student") {
+      await firebaseService.saveParticipant(clean);
     }
   },
 
@@ -2337,6 +2347,11 @@ export const mockDB = {
     saveCloudSnapshotToLocalStorage();
   },
 
+  updateSettingsAsync: async (newSettings: Partial<SystemSettings>) => {
+    mockDB.updateSettings(newSettings);
+    await firebaseService.saveSettings(memoryStore.settings);
+  },
+
   getColleges: (): College[] => {
     return memoryStore.colleges.length > 0 ? memoryStore.colleges : DEFAULT_COLLEGES;
   },
@@ -2351,13 +2366,28 @@ export const mockDB = {
     firebaseService.saveCollege(college);
   },
 
+  addCollegeAsync: async (college: College): Promise<College> => {
+    mockDB.addCollege(college);
+    await firebaseService.saveCollege(college);
+    return college;
+  },
+
   updateCollege: (college: College) => {
     mockDB.addCollege(college);
+  },
+
+  updateCollegeAsync: async (college: College): Promise<College> => {
+    return await mockDB.addCollegeAsync(college);
   },
 
   deleteCollege: (id: string) => {
     memoryStore.colleges = memoryStore.colleges.filter(c => c.id !== id);
     firebaseService.deleteCollege(id);
+  },
+
+  deleteCollegeAsync: async (id: string): Promise<void> => {
+    mockDB.deleteCollege(id);
+    await firebaseService.deleteCollege(id);
   },
 
   getAnnouncements: (symposiumId?: string): Announcement[] => {
@@ -2486,11 +2516,32 @@ export const mockDB = {
   },
 
   updateUserPassword: async (userId: string, newPass: string, adminName: string = "System Controller") => {
+    return await mockDB.updateUserPasswordAsync(userId, newPass, adminName);
+  },
+
+  updateUserPasswordAsync: async (userId: string, newPass: string, adminName: string = "System Controller"): Promise<User> => {
     const user = memoryStore.users.find(u => u.id === userId || u.participantId === userId);
-    if (!user) throw new Error("User not found.");
-    user.password = hashPasswordSync(newPass.trim());
-    mockDB.updateUser(user);
-    mockDB.logActivity("SUPER_ADMIN", adminName, "PASSWORD_RESET", `Reset passcode for ${user.name} (${user.email})`);
+    if (!user) throw new Error("User record not found.");
+    const cleanPass = newPass.trim();
+    const hashed = /^[a-f0-9]{64}$/i.test(cleanPass) ? cleanPass.toLowerCase() : await hashPassword(cleanPass);
+    user.password = hashed;
+    await mockDB.updateUserAsync(user);
+
+    // Call server API for guaranteed backend persistence in Firestore
+    if (typeof window !== "undefined") {
+      try {
+        await fetch("/api/admin/save-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, newPassword: cleanPass, action: "update_password" })
+        });
+      } catch (e) {
+        console.warn("Direct API password update fallback:", e);
+      }
+    }
+
+    mockDB.logActivity("ADMIN", adminName, "PASSWORD_RESET", `Reset passcode for ${user.name} (${user.email})`);
+    return user;
   },
 
   switchAccount: async (targetUser: User) => {
@@ -2900,7 +2951,11 @@ export const mockDB = {
   },
 
   saveVolunteerAsync: async (volunteer: any, adminId: string = "Admin Office"): Promise<User> => {
-    const fullVol = mockDB.saveVolunteer(volunteer, adminId);
+    let pass = volunteer.password || "volunteer123";
+    if (pass && !/^[a-f0-9]{64}$/i.test(pass)) {
+      pass = await hashPassword(pass);
+    }
+    const fullVol = mockDB.saveVolunteer({ ...volunteer, password: pass }, adminId);
     await firebaseService.saveUser(fullVol);
     return fullVol;
   },

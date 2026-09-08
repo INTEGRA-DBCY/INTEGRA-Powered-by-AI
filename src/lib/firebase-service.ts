@@ -1,4 +1,4 @@
-import { hashPasswordSync } from "./security";
+import { hashPassword, hashPasswordSync } from "./security";
 import { db, isFirebaseConfigured } from "./firebase";
 import { 
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, 
@@ -244,27 +244,45 @@ export const firebaseService = {
 
   // ── Users & Passwords CRUD ───────────────────────────────────────────────
   saveUser: async (user: any) => {
-    if (!isFirebaseConfigured || !db || !user?.id) return;
+    if (!user?.id) return;
     try {
       const clean = cleanDataForFirestore(user);
       if (clean.password && !/^[a-f0-9]{64}$/i.test(clean.password)) {
-        clean.password = hashPasswordSync(clean.password);
+        clean.password = await hashPassword(clean.password);
       }
-      await setDoc(doc(db, USERS, String(user.id)), clean, { merge: true });
-      if (user.participantId && user.participantId !== user.id) {
-        await setDoc(doc(db, USERS, String(user.participantId)), clean, { merge: true });
-      }
-      if (user.role === "student") {
-        await setDoc(doc(db, PARTICIPANTS, String(user.id)), clean, { merge: true });
-        if (user.participantId && user.participantId !== user.id) {
-          await setDoc(doc(db, PARTICIPANTS, String(user.participantId)), clean, { merge: true });
+
+      // 1. Dual-Sync: Guaranteed server API persistence
+      if (typeof window !== "undefined") {
+        try {
+          await fetch("/api/admin/save-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user: clean, action: "save" })
+          });
+        } catch (apiErr) {
+          console.warn("Server API save-user fallback:", apiErr);
         }
       }
-      if (user.role === "volunteer" || user.volunteerDuty) {
-        await setDoc(doc(db, VOLUNTEERS, String(user.id)), clean, { merge: true });
+
+      // 2. Direct Firestore SDK setDoc
+      if (isFirebaseConfigured && db) {
+        await setDoc(doc(db, USERS, String(user.id)), clean, { merge: true });
+        if (user.participantId && user.participantId !== user.id) {
+          await setDoc(doc(db, USERS, String(user.participantId)), clean, { merge: true });
+        }
+        if (user.role === "student") {
+          await setDoc(doc(db, PARTICIPANTS, String(user.id)), clean, { merge: true });
+          if (user.participantId && user.participantId !== user.id) {
+            await setDoc(doc(db, PARTICIPANTS, String(user.participantId)), clean, { merge: true });
+          }
+        }
+        if (user.role === "volunteer" || user.volunteerDuty || (Array.isArray(user.roles) && user.roles.includes("volunteer"))) {
+          await setDoc(doc(db, VOLUNTEERS, String(user.id)), clean, { merge: true });
+        }
       }
     } catch (e) {
       console.error("Error saving user to Firebase:", e);
+      throw e;
     }
   },
 
@@ -379,6 +397,19 @@ export const firebaseService = {
         if (userOrId.email) targetEmail = String(userOrId.email).toLowerCase().trim();
       } else {
         idsToDelete.add(String(userOrId));
+      }
+
+      // 1. Dual-Sync: Call server API for guaranteed backend purge
+      if (typeof window !== "undefined") {
+        for (const tid of idsToDelete) {
+          try {
+            await fetch("/api/admin/save-user", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: tid, action: "delete" })
+            });
+          } catch {}
+        }
       }
 
       // Query & delete all matching docs from USERS collection
