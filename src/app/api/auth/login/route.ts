@@ -56,36 +56,45 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 1.2 Query users collection by email / participantId / phone
+        // 1.2 Query across Firestore collections: users, volunteers, participants
         if (!authenticatedUser) {
-          const snap = await getDocs(collection(db, "users"));
-          for (const d of snap.docs) {
-            const data: any = d.data();
-            const dEmail = (data.email || "").toLowerCase().trim();
-            const dPid = (data.participantId || data.id || "").toLowerCase().trim();
-            const dReg = (data.registrationId || "").toLowerCase().trim();
-            const dPhone = (data.phone || "").replace(/[^0-9]/g, "");
-            const cleanInputPhone = loginIdentifier.replace(/[^0-9]/g, "");
+          const collectionsToSearch = ["users", "volunteers", "participants"];
+          for (const collName of collectionsToSearch) {
+            try {
+              const snap = await getDocs(collection(db, collName));
+              for (const d of snap.docs) {
+                const data: any = d.data();
+                const dEmail = (data.email || "").toLowerCase().trim();
+                const dPid = (data.participantId || data.id || "").toLowerCase().trim();
+                const dReg = (data.registrationId || "").toLowerCase().trim();
+                const dPhone = (data.phone || "").replace(/[^0-9]/g, "");
+                const cleanInputPhone = loginIdentifier.replace(/[^0-9]/g, "");
 
-            if (
-              dEmail === loginIdentifier ||
-              dPid === loginIdentifier ||
-              dReg === loginIdentifier ||
-              (cleanInputPhone.length >= 10 && dPhone === cleanInputPhone)
-            ) {
-              const storedPass = String(data.password || "");
-              const storedHash = /^[a-f0-9]{64}$/i.test(storedPass) ? storedPass.toLowerCase() : await sha256Async(storedPass);
-              if (storedHash === inputHash.toLowerCase()) {
-                authenticatedUser = {
-                  id: d.id,
-                  email: data.email || loginIdentifier,
-                  name: data.name || "User",
-                  role: data.role || (isServerStaff(loginIdentifier) ? "admin" : "student"),
-                  department: data.department,
-                  phone: data.phone
-                };
-                break;
+                if (
+                  dEmail === loginIdentifier ||
+                  dPid === loginIdentifier ||
+                  dReg === loginIdentifier ||
+                  (cleanInputPhone.length >= 10 && dPhone === cleanInputPhone)
+                ) {
+                  const storedPass = String(data.password || "");
+                  const storedHash = /^[a-f0-9]{64}$/i.test(storedPass) ? storedPass.toLowerCase() : await sha256Async(storedPass);
+                  if (storedHash === inputHash.toLowerCase()) {
+                    const resolvedRole = data.role || (collName === "volunteers" ? "volunteer" : collName === "participants" ? "student" : (isServerStaff(loginIdentifier) ? "admin" : "student"));
+                    authenticatedUser = {
+                      id: d.id,
+                      email: data.email || loginIdentifier,
+                      name: data.name || "User",
+                      role: resolvedRole,
+                      department: data.department,
+                      phone: data.phone
+                    };
+                    break;
+                  }
+                }
               }
+              if (authenticatedUser) break;
+            } catch (collErr) {
+              console.warn(`Query error in ${collName}:`, collErr);
             }
           }
         }
