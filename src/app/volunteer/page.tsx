@@ -196,8 +196,8 @@ export default function VolunteerDashboard() {
             <div className="scanner-ray" />
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <h2 className="text-base font-heading font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-                <QrCode size={18} className="text-orange-500" /> QR Attendance Scanner
+              <h2 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+                <QrCode size={18} className="text-orange-600" /> QR Attendance Scanner
               </h2>
 
               {/* Venue / Scan Mode Selector */}
@@ -246,7 +246,7 @@ export default function VolunteerDashboard() {
               />
               <button
                 type="submit"
-                className="w-full sm:w-auto bg-orange-600 hover:bg-orange-500 text-slate-900 font-extrabold px-5 py-2.5 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[10px] font-mono cursor-pointer shadow-lg shadow-amber-600/30 text-center"
+                className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2.5 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[11px] font-mono cursor-pointer shadow-lg shadow-orange-600/30 text-center"
               >
                 Verify Attendance
               </button>

@@ -398,7 +398,7 @@ export function CameraQRScanner({
       </div>
 
       {/* Camera Viewfinder Box */}
-      <div className="relative aspect-video w-full rounded-2xl bg-white border border-slate-200 shadow-sm border border-slate-800 overflow-hidden flex flex-col items-center justify-center shadow-inner">
+      <div className="relative aspect-video w-full rounded-2xl bg-slate-900 border-2 border-slate-300 overflow-hidden flex flex-col items-center justify-center shadow-lg">
         {/* Hidden Canvas for Decoding */}
         <canvas ref={canvasRef} className="hidden" />
 
@@ -415,9 +415,9 @@ export function CameraQRScanner({
 
         {/* Camera Active Viewfinder Overlay */}
         {isCameraActive ? (
-          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4 bg-radial from-transparent to-black/50">
+          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4 bg-gradient-to-b from-black/40 via-transparent to-black/60">
             {/* Top Status */}
-            <div className="flex justify-between items-center w-full text-[10px] font-mono text-emerald-800 font-extrabold bg-black/50 px-3 py-1 rounded-full border border-emerald-500/30">
+            <div className="flex justify-between items-center w-full text-[10px] font-mono text-emerald-300 font-bold bg-slate-950/80 px-3 py-1 rounded-full border border-emerald-500/40 backdrop-blur-xs">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 OPTICAL SCANNER ACTIVE
@@ -426,7 +426,7 @@ export function CameraQRScanner({
             </div>
 
             {/* Target Reticle & Laser Sweep Animation */}
-            <div className="relative w-48 h-48 sm:w-56 sm:h-56 border-2 border-dashed border-emerald-400/40 rounded-2xl flex items-center justify-center">
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 border-2 border-dashed border-emerald-400/50 rounded-2xl flex items-center justify-center">
               {/* Corner Brackets */}
               <div className="absolute -top-1 -left-1 w-6 h-6 border-t-3 border-l-3 border-emerald-400 rounded-tl-lg" />
               <div className="absolute -top-1 -right-1 w-6 h-6 border-t-3 border-r-3 border-emerald-400 rounded-tr-lg" />
@@ -436,13 +436,13 @@ export function CameraQRScanner({
               {/* Laser Sweep Ray */}
               <div className="scanner-ray" style={{ background: "linear-gradient(to right, transparent, #10B981, transparent)", boxShadow: "0 0 12px #10B981" }} />
 
-              <span className="text-[10px] font-mono text-emerald-900 font-bold bg-black/60 px-2 py-0.5 rounded border border-emerald-400/30">
+              <span className="text-[10px] font-mono text-emerald-300 font-bold bg-slate-950/80 px-2.5 py-1 rounded-md border border-emerald-400/40">
                 ALIGN QR CODE HERE
               </span>
             </div>
 
             {/* Bottom Caption */}
-            <div className="text-[10px] font-mono text-slate-800 font-bold bg-black/60 px-3 py-1 rounded-full border border-slate-700">
+            <div className="text-[10px] font-mono text-slate-200 font-bold bg-slate-950/80 px-3 py-1 rounded-full border border-slate-600">
               Auto-detect active • Point camera at QR pass
             </div>
           </div>
