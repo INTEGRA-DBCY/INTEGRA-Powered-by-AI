@@ -202,20 +202,20 @@ export default function VolunteerDashboard() {
 
               {/* Venue / Scan Mode Selector */}
               <div className="flex items-center gap-2">
-                <MapPin size={14} className="text-slate-600" />
+                <MapPin size={15} className="text-orange-600 shrink-0" />
                 <select
                   value={selectedScanMode}
                   onChange={(e) => {
                     setSelectedScanMode(e.target.value);
                     setScanResult(null);
                   }}
-                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-bold font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  className="bg-white border-2 border-orange-400/60 hover:border-orange-500 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-extrabold font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-sm"
                 >
-                  <option value="gate">🏛️ Campus Main Gate Entry</option>
-                  <optgroup label="Event Specific Venues">
+                  <option value="gate" className="text-slate-900 font-bold bg-white py-1">🏛️ Campus Main Gate Entry</option>
+                  <optgroup label="── Event Specific Venues ──" className="text-orange-800 font-extrabold bg-slate-100 py-1">
                     {missions.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.venue})
+                      <option key={m.id} value={m.id} className="text-slate-900 font-bold bg-white py-1">
+                        🎯 {m.name} ({m.venue})
                       </option>
                     ))}
                   </optgroup>
