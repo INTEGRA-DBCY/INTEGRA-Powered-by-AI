@@ -222,13 +222,16 @@ export default function AdminDashboard() {
     email: "",
     phone: "",
     department: "Computer Science",
-    password: "volunteer",
+    password: "volunteer123",
     volunteerDuty: {
-      station: "Gate Entry",
-      venueName: "Campus Main Gate Entry",
+      station: "event_entry",
+      volunteerType: "event_entry",
+      eventId: "event-ai-quiz-arena",
+      eventName: "AI Quiz Arena",
+      venueName: "Seminar Hall A",
       shift: "Full Day",
       status: "Active",
-      notes: ""
+      notes: "Verify participant QR for event attendance."
     }
   });
 
@@ -1102,34 +1105,45 @@ export default function AdminDashboard() {
 
   // Volunteer Management Handlers
   const handleOpenAddVolunteer = () => {
+    const firstMission = missions[0];
     setVolFormData({
       id: undefined,
       name: "",
       email: "",
       phone: "+91 ",
       department: "Computer Science",
-      password: "volunteer",
+      password: "volunteer123",
       volunteerDuty: {
-        station: "Gate Entry",
-        venueName: "Campus Main Gate Entry",
+        station: "event_entry",
+        volunteerType: "event_entry",
+        eventId: firstMission?.id || "event-ai-quiz-arena",
+        eventName: firstMission?.name || "AI Quiz Arena",
+        venueName: firstMission?.venue || "Seminar Hall A",
         shift: "Full Day",
         status: "Active",
-        notes: ""
+        notes: "Verify participant QR for event attendance."
       }
     });
     setVolunteerModalOpen(true);
   };
 
   const handleOpenEditVolunteer = (vol: DBUser) => {
+    const isFood = vol.volunteerDuty?.station === "food_distributor" || vol.volunteerDuty?.volunteerType === "food_distributor" || vol.volunteerDuty?.station === "Food Counters" || vol.volunteerDuty?.station === "Food Counter";
+    const currentDuty = vol.volunteerDuty;
+    const firstMission = missions[0];
+
     setVolFormData({
       ...vol,
       password: "", // Blank so admin can set new password or leave blank to preserve current password
-      volunteerDuty: vol.volunteerDuty || {
-        station: "Gate Entry",
-        venueName: "Campus Main Gate Entry",
-        shift: "Full Day",
-        status: "Active",
-        notes: ""
+      volunteerDuty: {
+        station: isFood ? "food_distributor" : "event_entry",
+        volunteerType: isFood ? "food_distributor" : "event_entry",
+        eventId: isFood ? undefined : (currentDuty?.eventId || firstMission?.id || "event-ai-quiz-arena"),
+        eventName: isFood ? undefined : (currentDuty?.eventName || firstMission?.name || "AI Quiz Arena"),
+        venueName: isFood ? "Dining Hall / Food Counter" : (currentDuty?.venueName || firstMission?.venue || "Seminar Hall A"),
+        shift: currentDuty?.shift || "Full Day",
+        status: currentDuty?.status || "Active",
+        notes: currentDuty?.notes || (isFood ? "Verify food & refreshment token QR codes." : "Verify participant QR for event attendance.")
       }
     });
     setVolunteerModalOpen(true);
@@ -2277,14 +2291,31 @@ export default function AdminDashboard() {
     );
   });
 
-  // Volunteer metrics & filters
-  const gateVolunteers = volunteers.filter(v => v.volunteerDuty?.station === "Gate Entry");
-  const foodVolunteers = volunteers.filter(v => v.volunteerDuty?.station === "Food Counter");
-  const eventVolunteers = volunteers.filter(v => v.volunteerDuty?.station === "Event Venue");
-  const regVolunteers = volunteers.filter(v => v.volunteerDuty?.station === "Registration Desk");
+  // Volunteer metrics & filters (Strictly 2 Types: Event Entry & Food Distributor)
+  const isEventEntryVolunteer = (v: DBUser) => {
+    const s = v.volunteerDuty?.station;
+    const t = v.volunteerDuty?.volunteerType;
+    return t === "event_entry" || s === "event_entry" || s === "Event Entry" || s === "Event Venue Pass Verification" || s === "Event Venue" || s === "Registration" || s === "Gate Entry" || s === "Registration Desk" || s === "Helpdesk" || s === "Helpdesk & Logistics";
+  };
+  const isFoodDistributorVolunteer = (v: DBUser) => {
+    const s = v.volunteerDuty?.station;
+    const t = v.volunteerDuty?.volunteerType;
+    return t === "food_distributor" || s === "food_distributor" || s === "Food Distributor" || s === "Food Counters" || s === "Food Counter";
+  };
+
+  const eventEntryVolunteers = volunteers.filter(isEventEntryVolunteer);
+  const foodDistributorVolunteers = volunteers.filter(isFoodDistributorVolunteer);
 
   const filteredVolunteers = volunteers.filter(v => {
-    const matchesStation = volStationFilter === "All" || v.volunteerDuty?.station === volStationFilter;
+    let matchesStation = true;
+    if (volStationFilter === "event_entry") {
+      matchesStation = isEventEntryVolunteer(v);
+    } else if (volStationFilter === "food_distributor") {
+      matchesStation = isFoodDistributorVolunteer(v);
+    } else if (volStationFilter !== "All") {
+      matchesStation = v.volunteerDuty?.station === volStationFilter;
+    }
+
     const q = volSearchQuery.trim().toLowerCase();
     const matchesQuery = !q || (
       (v.name && v.name.toLowerCase().includes(q)) ||
@@ -5308,35 +5339,31 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Station Metrics (4 Official Volunteer Roles) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 border border-sky-500/30">
-                  <span className="text-[10px] text-blue-900 font-extrabold uppercase font-bold block">1. Registration</span>
-                  <span className="text-lg font-extrabold text-slate-900">
-                    {volunteers.filter(v => v.volunteerDuty?.station === "Registration" || v.volunteerDuty?.station === "Gate Entry" || v.volunteerDuty?.station === "Registration Desk").length} Crew
+              {/* Station Metrics (Strictly 2 Volunteer Roles) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 border border-sky-500/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-blue-900 font-extrabold uppercase tracking-wider block">1. Event Entry Volunteers</span>
+                    <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">Attendance Verification</span>
+                  </div>
+                  <span className="text-2xl font-extrabold text-slate-900 mt-1 block">
+                    {eventEntryVolunteers.length} Crew Members
                   </span>
-                  <span className="text-[9px] text-slate-600 block mt-0.5">Gate Check-in & Passes</span>
+                  <span className="text-[10px] text-slate-600 block mt-1">
+                    Scans participant QR code at specific event competition venues to mark attendance as Present.
+                  </span>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 border border-purple-300">
-                  <span className="text-[10px] text-blue-600 uppercase font-bold block">2. Venue Pass Verification</span>
-                  <span className="text-lg font-extrabold text-slate-900">
-                    {volunteers.filter(v => v.volunteerDuty?.station === "Event Venue Pass Verification" || v.volunteerDuty?.station === "Event Venue").length} Crew
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 border border-orange-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-orange-600 uppercase font-bold tracking-wider block">2. Food Distributor Volunteers</span>
+                    <span className="text-[10px] bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full">Meals & Refreshments</span>
+                  </div>
+                  <span className="text-2xl font-extrabold text-slate-900 mt-1 block">
+                    {foodDistributorVolunteers.length} Crew Members
                   </span>
-                  <span className="text-[9px] text-slate-600 block mt-0.5">Hall & Lab QR Scanners</span>
-                </div>
-                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 border border-orange-200">
-                  <span className="text-[10px] text-orange-500 uppercase font-bold block">3. Food Counters</span>
-                  <span className="text-lg font-extrabold text-slate-900">
-                    {volunteers.filter(v => v.volunteerDuty?.station === "Food Counters" || v.volunteerDuty?.station === "Food Counter").length} Crew
+                  <span className="text-[10px] text-slate-600 block mt-1">
+                    Scans Food Token & Refreshment Token QR codes to claim and distribute allowances without double-claiming.
                   </span>
-                  <span className="text-[9px] text-slate-600 block mt-0.5">Refreshments & Dining</span>
-                </div>
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 border border-emerald-500/30">
-                  <span className="text-[10px] text-emerald-800 font-extrabold uppercase font-bold block">4. Helpdesk</span>
-                  <span className="text-lg font-extrabold text-slate-900">
-                    {volunteers.filter(v => v.volunteerDuty?.station === "Helpdesk" || v.volunteerDuty?.station === "Helpdesk & Logistics").length} Crew
-                  </span>
-                  <span className="text-[9px] text-slate-600 block mt-0.5">Student Support & Guidance</span>
                 </div>
               </div>
 
@@ -5345,11 +5372,9 @@ export default function AdminDashboard() {
                 {/* Station Filter Pills */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {[
-                    { id: "All", label: `All Stations (${volunteers.length})` },
-                    { id: "Registration", label: "Registration" },
-                    { id: "Event Venue Pass Verification", label: "Event Venue Pass Verification" },
-                    { id: "Food Counters", label: "Food Counters" },
-                    { id: "Helpdesk", label: "Helpdesk" }
+                    { id: "All", label: `All Volunteers (${volunteers.length})` },
+                    { id: "event_entry", label: `Event Entry Crew (${eventEntryVolunteers.length})` },
+                    { id: "food_distributor", label: `Food Distributors (${foodDistributorVolunteers.length})` }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -5396,12 +5421,11 @@ export default function AdminDashboard() {
                 <div className="grid md:grid-cols-2 gap-4">
                   {filteredVolunteers.map(vol => {
                     const duty = vol.volunteerDuty;
-                    const stationColor = 
-                      duty?.station === "Registration" || duty?.station === "Gate Entry" ? "bg-blue-50 border border-blue-200 text-blue-900 font-bold border-sky-500/40" :
-                      duty?.station === "Event Venue Pass Verification" || duty?.station === "Event Venue" ? "bg-indigo-50 border border-indigo-200 text-blue-700 border-purple-500/40" :
-                      duty?.station === "Food Counters" || duty?.station === "Food Counter" ? "bg-amber-50 border border-amber-200 text-orange-600 border-amber-500/40" :
-                      duty?.station === "Helpdesk" || duty?.station === "Helpdesk & Logistics" ? "bg-emerald-50 border border-emerald-200 text-emerald-700 border-emerald-500/40" :
-                      "bg-indigo-950/90 text-indigo-300 border-indigo-500/40";
+                    const isEventEntry = vol.volunteerDuty?.volunteerType === "event_entry" || vol.volunteerDuty?.station === "event_entry" || vol.volunteerDuty?.station === "Event Entry" || vol.volunteerDuty?.station === "Event Venue Pass Verification" || vol.volunteerDuty?.station === "Event Venue" || vol.volunteerDuty?.station === "Registration" || vol.volunteerDuty?.station === "Gate Entry" || vol.volunteerDuty?.station === "Registration Desk" || vol.volunteerDuty?.station === "Helpdesk";
+                    const isFood = !isEventEntry;
+                    const stationColor = isEventEntry 
+                      ? "bg-blue-50 border border-blue-200 text-blue-900 font-bold border-sky-500/40"
+                      : "bg-amber-50 border border-amber-200 text-orange-600 border-amber-500/40";
 
                     return (
                       <div 
@@ -5415,7 +5439,7 @@ export default function AdminDashboard() {
                               <div className="flex items-center gap-2">
                                 <h4 className="font-heading font-extrabold text-sm text-slate-900">{vol.name}</h4>
                                 <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${stationColor}`}>
-                                  {duty?.station || "General"}
+                                  {isEventEntry ? "🎯 Event Entry" : "🍱 Food Distributor"}
                                 </span>
                               </div>
                               <p className="text-[11px] text-slate-700 font-semibold font-medium">{vol.department} • {vol.phone || "No Phone"}</p>
@@ -5431,7 +5455,7 @@ export default function AdminDashboard() {
                           <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 text-xs space-y-1.5 font-mono shadow-inner">
                             <div className="flex items-center gap-1.5 text-slate-900 font-extrabold">
                               <MapPin size={13} className="text-blue-600" />
-                              <span>{duty?.venueName || duty?.eventName || "Assigned Duty Station"}</span>
+                              <span>{isEventEntry ? (duty?.eventName ? `${duty.eventName} (${duty?.venueName || "Event Hall"})` : duty?.venueName || "Assigned Competition") : (duty?.venueName || "Dining Hall / Food Counter")}</span>
                             </div>
 
                             <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
@@ -5446,8 +5470,7 @@ export default function AdminDashboard() {
                             )}
 
                             <div className="text-[10px] text-slate-600 pt-1 flex justify-between items-center">
-                              <span>Assigned by: {duty?.assignedBy || "Admin"}</span>
-                              <span>Duty: <span className="text-slate-700 font-bold">{vol.volunteerDuty?.eventName || "General Gate & Helpdesk"}</span></span>
+                              <span>Role: <strong className="text-slate-800">{isEventEntry ? "Event Attendance Verification" : "Meals & Refreshments Redemption"}</strong></span>
                             </div>
                           </div>
                         </div>
@@ -5456,16 +5479,22 @@ export default function AdminDashboard() {
                         <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 flex-wrap text-xs">
                           {/* Quick station reassign dropdown */}
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-mono text-slate-600">Reassign:</span>
+                            <span className="text-[10px] font-mono text-slate-600">Switch:</span>
                             <select
-                              value={duty?.station || "Gate Entry"}
-                              onChange={(e) => handleQuickAssignStation(vol.id, e.target.value as any)}
+                              value={isEventEntry ? "event_entry" : "food_distributor"}
+                              onChange={(e) => {
+                                const newType = e.target.value as "event_entry" | "food_distributor";
+                                if (newType === "event_entry") {
+                                  const m = missions[0];
+                                  handleQuickAssignStation(vol.id, "event_entry", m?.venue || "Seminar Hall A", m?.id);
+                                } else {
+                                  handleQuickAssignStation(vol.id, "food_distributor", "Dining Hall / Food Counter");
+                                }
+                              }}
                               className="bg-slate-50/70 border border-slate-200 rounded-lg px-2 py-1 text-[11px] text-slate-900 font-bold font-mono font-bold cursor-pointer"
                             >
-                              <option value="Registration">Registration</option>
-                              <option value="Event Venue Pass Verification">Event Venue Pass Verification</option>
-                              <option value="Food Counters">Food Counters</option>
-                              <option value="Helpdesk">Helpdesk</option>
+                              <option value="event_entry">🎯 Event Entry</option>
+                              <option value="food_distributor">🍱 Food Distributor</option>
                             </select>
                           </div>
 
@@ -7521,58 +7550,156 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Station Duty Category (4 Standard Stations) */}
-              <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl border border-purple-500/40 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-blue-700 font-mono text-[10px] font-bold uppercase mb-1.5">Duty Station / Area *</label>
-                    <select
-                      value={volFormData.volunteerDuty?.station || "Registration"}
-                      onChange={(e) => {
-                        const station = e.target.value as any;
-                        let venueDefault = "Campus Main Gate Entry";
-                        if (station === "Food Counters") venueDefault = "Dining Hall - Counter 1 (Buffet)";
-                        if (station === "Event Venue Pass Verification") venueDefault = "Event Seminar Hall / Lab Entrance";
-                        if (station === "Helpdesk") venueDefault = "Helpdesk - Campus Foyer";
-
+              {/* Volunteer Role & Duty Station Selection (Strictly 2 Types) */}
+              <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-3.5">
+                <div>
+                  <label className="block text-blue-900 font-mono text-[11px] font-extrabold uppercase tracking-wider mb-1.5">
+                    Volunteer Duty Type *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const firstMission = missions[0];
                         setVolFormData(prev => ({
                           ...prev,
                           volunteerDuty: {
                             ...prev.volunteerDuty!,
-                            station,
-                            venueName: venueDefault,
-                            eventId: undefined,
-                            eventName: undefined
+                            station: "event_entry",
+                            volunteerType: "event_entry",
+                            eventId: prev.volunteerDuty?.eventId || firstMission?.id || "event-ai-quiz-arena",
+                            eventName: prev.volunteerDuty?.eventName || firstMission?.name || "AI Quiz Arena",
+                            venueName: prev.volunteerDuty?.venueName || firstMission?.venue || "Seminar Hall A",
+                            notes: "Scan participant QR to mark attendance as Present."
                           }
                         }));
                       }}
-                      className="w-full bg-slate-50 border border-purple-500/40 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold placeholder-slate-500 bg-white border border-slate-300 font-mono focus:ring-2 focus:ring-purple-500 outline-none font-bold cursor-pointer"
+                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                        (volFormData.volunteerDuty?.station === "event_entry" || volFormData.volunteerDuty?.volunteerType === "event_entry" || volFormData.volunteerDuty?.station === "Event Entry" || volFormData.volunteerDuty?.station === "Event Venue Pass Verification")
+                          ? "bg-blue-600 text-white border-blue-700 shadow-sm"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
                     >
-                      <option value="Registration">🎫 Registration</option>
-                      <option value="Event Venue Pass Verification">🏷️ Event Venue Pass Verification</option>
-                      <option value="Food Counters">☕ Food Counters</option>
-                      <option value="Helpdesk">ℹ️ Helpdesk</option>
-                    </select>
-                  </div>
+                      <div className="font-mono font-bold text-xs flex items-center gap-1.5">
+                        <span>🎯</span> 1. Event Entry Volunteer
+                      </div>
+                      <p className={`text-[10px] mt-1 leading-snug ${
+                        (volFormData.volunteerDuty?.station === "event_entry" || volFormData.volunteerDuty?.volunteerType === "event_entry" || volFormData.volunteerDuty?.station === "Event Entry" || volFormData.volunteerDuty?.station === "Event Venue Pass Verification")
+                          ? "text-blue-100"
+                          : "text-slate-600"
+                      }`}>
+                        Assigned to a specific competition/event. Scans participant QR to mark attendance Present.
+                      </p>
+                    </button>
 
-                  <div>
-                    <label className="block text-blue-700 font-mono text-[10px] font-bold uppercase mb-1.5">Specific Counter / Location *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVolFormData(prev => ({
+                          ...prev,
+                          volunteerDuty: {
+                            ...prev.volunteerDuty!,
+                            station: "food_distributor",
+                            volunteerType: "food_distributor",
+                            eventId: undefined,
+                            eventName: undefined,
+                            venueName: "Dining Hall / Food Counter",
+                            notes: "Scan food token QR & refreshment token QR to distribute meals."
+                          }
+                        }));
+                      }}
+                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                        (volFormData.volunteerDuty?.station === "food_distributor" || volFormData.volunteerDuty?.volunteerType === "food_distributor" || volFormData.volunteerDuty?.station === "Food Distributor" || volFormData.volunteerDuty?.station === "Food Counters")
+                          ? "bg-amber-600 text-white border-amber-700 shadow-sm"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="font-mono font-bold text-xs flex items-center gap-1.5">
+                        <span>🍱</span> 2. Food Distributor Volunteer
+                      </div>
+                      <p className={`text-[10px] mt-1 leading-snug ${
+                        (volFormData.volunteerDuty?.station === "food_distributor" || volFormData.volunteerDuty?.volunteerType === "food_distributor" || volFormData.volunteerDuty?.station === "Food Distributor" || volFormData.volunteerDuty?.station === "Food Counters")
+                          ? "text-amber-100"
+                          : "text-slate-600"
+                      }`}>
+                        Scans Food Token & Refreshment Token QR codes to claim and serve refreshments.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Event Assignment Dropdown (Shown when Event Entry is selected) */}
+                {!(volFormData.volunteerDuty?.station === "food_distributor" || volFormData.volunteerDuty?.volunteerType === "food_distributor" || volFormData.volunteerDuty?.station === "Food Distributor" || volFormData.volunteerDuty?.station === "Food Counters") ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-blue-900 font-mono text-[10px] font-bold uppercase mb-1.5">
+                        Assigned Competition / Event *
+                      </label>
+                      <select
+                        value={volFormData.volunteerDuty?.eventId || missions[0]?.id || ""}
+                        onChange={(e) => {
+                          const mId = e.target.value;
+                          const chosenMission = missions.find(m => m.id === mId);
+                          setVolFormData(prev => ({
+                            ...prev,
+                            volunteerDuty: {
+                              ...prev.volunteerDuty!,
+                              station: "event_entry",
+                              volunteerType: "event_entry",
+                              eventId: mId,
+                              eventName: chosenMission?.name || "Competition Event",
+                              venueName: chosenMission?.venue || "Seminar Hall"
+                            }
+                          }));
+                        }}
+                        className="w-full bg-white border border-blue-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer shadow-xs"
+                      >
+                        {missions.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.venue})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-blue-900 font-mono text-[10px] font-bold uppercase mb-1.5">
+                        Event Venue / Location Room *
+                      </label>
+                      <input
+                        type="text"
+                        value={volFormData.volunteerDuty?.venueName || ""}
+                        onChange={(e) => setVolFormData(prev => ({
+                          ...prev,
+                          volunteerDuty: { ...prev.volunteerDuty!, venueName: e.target.value }
+                        }))}
+                        placeholder="e.g. Computer Lab 1 / Seminar Hall A"
+                        required
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-1">
+                    <label className="block text-orange-900 font-mono text-[10px] font-bold uppercase mb-1.5">
+                      Distribution Counter / Location *
+                    </label>
                     <input
                       type="text"
-                      value={volFormData.volunteerDuty?.venueName || ""}
+                      value={volFormData.volunteerDuty?.venueName || "Dining Hall / Food Counter"}
                       onChange={(e) => setVolFormData(prev => ({
                         ...prev,
                         volunteerDuty: { ...prev.volunteerDuty!, venueName: e.target.value }
                       }))}
-                      placeholder="e.g. Main Gate Desk / Dining Counter 1"
+                      placeholder="e.g. Dining Hall - Counter 1 / Refreshment Counter"
                       required
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold placeholder-slate-500 bg-white border border-slate-300 font-mono focus:ring-2 focus:ring-purple-500 outline-none"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:ring-2 focus:ring-amber-500 outline-none"
                     />
                   </div>
-                </div>
+                )}
 
                 <div>
-                  <label className="block text-blue-700 font-mono text-[10px] font-bold uppercase mb-1.5">Duty Instructions / Notes</label>
+                  <label className="block text-slate-700 font-mono text-[10px] font-bold uppercase mb-1.5">Duty Instructions / Notes</label>
                   <input
                     type="text"
                     value={volFormData.volunteerDuty?.notes || ""}
@@ -7580,8 +7707,8 @@ export default function AdminDashboard() {
                       ...prev,
                       volunteerDuty: { ...prev.volunteerDuty!, notes: e.target.value }
                     }))}
-                    placeholder="e.g. Verify food token QR codes and distribute snack packets."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold placeholder-slate-500 bg-white border border-slate-300 font-mono focus:ring-2 focus:ring-purple-500 outline-none"
+                    placeholder="e.g. Verify participant QR for event attendance."
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>

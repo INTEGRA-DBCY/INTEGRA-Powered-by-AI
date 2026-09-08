@@ -156,8 +156,9 @@ export interface User {
     loggedBy?: string;
   };
   volunteerDuty?: {
-    station: "Registration" | "Event Venue Pass Verification" | "Food Counters" | "Helpdesk" | "Gate Entry" | "Food Counter" | "Event Venue" | "Registration Desk" | "Helpdesk & Logistics";
-    eventId?: string; // Event ID if Event Venue
+    station: "event_entry" | "food_distributor" | "Event Entry" | "Food Distributor" | "Registration" | "Event Venue Pass Verification" | "Food Counters" | "Helpdesk" | "Gate Entry" | "Food Counter" | "Event Venue" | "Registration Desk" | "Helpdesk & Logistics";
+    volunteerType?: "event_entry" | "food_distributor";
+    eventId?: string; // Event ID if Event Entry
     eventName?: string;
     venueName?: string;
     shift?: "Full Day" | "Morning Shift (08:30 AM - 01:30 PM)" | "Afternoon Shift (01:30 PM - 05:30 PM)";
@@ -173,7 +174,8 @@ export interface User {
 }
 
 export interface VolunteerDuty {
-  station: "Registration" | "Event Venue Pass Verification" | "Food Counters" | "Helpdesk" | "Gate Entry" | "Food Counter" | "Event Venue" | "Registration Desk" | "Helpdesk & Logistics";
+  station: "event_entry" | "food_distributor" | "Event Entry" | "Food Distributor" | "Registration" | "Event Venue Pass Verification" | "Food Counters" | "Helpdesk" | "Gate Entry" | "Food Counter" | "Event Venue" | "Registration Desk" | "Helpdesk & Logistics";
+  volunteerType?: "event_entry" | "food_distributor";
   eventId?: string;
   eventName?: string;
   venueName?: string;
@@ -2146,14 +2148,44 @@ export const mockDB = {
     const student = memoryStore.users.find(u => u.id === participantId || u.participantId === participantId);
     if (!student) throw new Error("Participant record not found.");
 
-    mockDB.logActivity(volunteerId, "Volunteer", "ATTENDANCE_SCANNED", `Verified attendance of ${student.name} (${student.participantId}) for event ${eventId}`);
+    const activeMission = (memoryStore.missions || []).find(m => m.id === eventId);
+    const eventTitle = activeMission ? activeMission.name : eventId;
+    const venueTitle = activeMission ? activeMission.venue : "Event Hall";
+
+    // Mark event attendance on participant record
+    if (!student.checkInStatus) {
+      student.checkInStatus = { checkedIn: true, time: new Date().toLocaleTimeString(), scannedBy: volunteerId, eventAttendance: {} };
+    }
+    if (!student.checkInStatus.eventAttendance) {
+      student.checkInStatus.eventAttendance = {};
+    }
+    student.checkInStatus.eventAttendance[eventId] = {
+      present: true,
+      time: new Date().toLocaleTimeString(),
+      venue: venueTitle,
+      volunteerId
+    };
+
+    if (!Array.isArray(student.attendedEvents)) {
+      student.attendedEvents = [];
+    }
+    if (!student.attendedEvents.includes(eventId)) {
+      student.attendedEvents.push(eventId);
+    }
+
+    mockDB.logActivity(volunteerId, "Volunteer", "ATTENDANCE_SCANNED", `Verified attendance of ${student.name} (${student.participantId}) for event ${eventTitle} (Present)`);
     firebaseService.logAttendance({
       eventId,
+      eventName: eventTitle,
       participantId: student.participantId || student.id,
       studentName: student.name,
+      status: "Present",
+      venue: venueTitle,
       scannedBy: volunteerId,
       timestamp: new Date().toISOString()
     });
+    firebaseService.saveUser(student);
+    firebaseService.saveParticipant(student);
     return student;
   },
 

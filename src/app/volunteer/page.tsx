@@ -3,21 +3,33 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Cpu, QrCode, RefreshCw, LogOut, Check, ShieldAlert, Phone, Users, UserCheck, MapPin, Camera } from "lucide-react";
-import { mockDB, User as DBUser, Mission, Symposium } from "@/lib/mock-db";
+import { Cpu, QrCode, RefreshCw, LogOut, Check, ShieldAlert, Phone, Users, UserCheck, MapPin, Camera, Utensils, Award, Clock } from "lucide-react";
+import { mockDB, User as DBUser, Mission, Symposium, FoodToken } from "@/lib/mock-db";
 import { CameraQRScanner } from "@/components/CameraQRScanner";
 
 export default function VolunteerDashboard() {
   const router = useRouter();
   const [symposium, setSymposium] = useState<Symposium | null>(null);
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [selectedScanMode, setSelectedScanMode] = useState<string>("gate"); // "gate" or eventId
-  const [checkedInList, setCheckedInList] = useState<DBUser[]>([]);
-  const [qrInput, setQrInput] = useState("");
-  const [scanResult, setScanResult] = useState<{ success: boolean; message: string; student?: DBUser } | null>(null);
-  const [scannerTime, setScannerTime] = useState("");
   const [currentVolunteer, setCurrentVolunteer] = useState<DBUser | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [scannerTime, setScannerTime] = useState("");
+
+  // Event Entry Volunteer Mode state
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [eventAttendeesList, setEventAttendeesList] = useState<DBUser[]>([]);
+
+  // Food Distributor Volunteer Mode state
+  const [claimedFoodTokensList, setClaimedFoodTokensList] = useState<FoodToken[]>([]);
+
+  // Scanner state
+  const [qrInput, setQrInput] = useState("");
+  const [scanResult, setScanResult] = useState<{
+    success: boolean;
+    message: string;
+    student?: DBUser;
+    token?: FoodToken;
+  } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -28,16 +40,18 @@ export default function VolunteerDashboard() {
       return;
     }
     setCurrentVolunteer(curr);
-    
-    // Auto-select assigned mode
+
+    // If event volunteer and has assigned event, set it
     if (curr.volunteerDuty?.eventId) {
-      setSelectedScanMode(curr.volunteerDuty.eventId);
-    } else {
-      setSelectedScanMode("gate");
+      setSelectedEventId(curr.volunteerDuty.eventId);
     }
 
-    fetchData();
-    mockDB.syncFromCloud().then(fetchData);
+    fetchData(curr);
+    mockDB.syncFromCloud().then(() => {
+      const refreshed = mockDB.getCurrentUser() || curr;
+      setCurrentVolunteer(refreshed);
+      fetchData(refreshed);
+    });
 
     const interval = setInterval(() => {
       setScannerTime(new Date().toLocaleTimeString());
@@ -45,46 +59,115 @@ export default function VolunteerDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchData = () => {
-    setSymposium(mockDB.getActiveSymposium());
-    setMissions(mockDB.getMissions());
-    const list = mockDB.getUsers().filter(u => u.role === "student" && u.checkInStatus?.checkedIn);
-    setCheckedInList(list);
+  const isFoodDistributor = (vol: DBUser | null) => {
+    if (!vol?.volunteerDuty) return false;
+    const s = vol.volunteerDuty.station;
+    const t = vol.volunteerDuty.volunteerType;
+    return t === "food_distributor" || s === "food_distributor" || s === "Food Distributor" || s === "Food Counters" || s === "Food Counter";
   };
+
+  const fetchData = (volOverride?: DBUser | null) => {
+    const vol = volOverride !== undefined ? volOverride : currentVolunteer;
+    const sym = mockDB.getActiveSymposium();
+    setSymposium(sym);
+    const mList = mockDB.getMissions();
+    setMissions(mList);
+
+    // If no event selected yet and volunteer is event_entry, default to assigned event or first mission
+    if (!isFoodDistributor(vol)) {
+      const targetEventId = selectedEventId || vol?.volunteerDuty?.eventId || mList[0]?.id || "";
+      if (!selectedEventId && targetEventId) {
+        setSelectedEventId(targetEventId);
+      }
+      // Get all students who have attendance marked for this event
+      const allStudents = mockDB.getUsers().filter(u => u.role === "student");
+      const eventAttendees = allStudents.filter(u => {
+        if (!targetEventId) return u.checkInStatus?.checkedIn;
+        return (
+          u.checkInStatus?.eventAttendance?.[targetEventId]?.present ||
+          u.attendedEvents?.includes(targetEventId)
+        );
+      });
+      setEventAttendeesList(eventAttendees);
+    } else {
+      // Food distributor - fetch claimed food tokens
+      const symId = sym?.id || "integra-2026";
+      const allTokens = mockDB.getFoodTokens(undefined, symId);
+      const claimed = allTokens.filter(t => t.status === "Claimed" || t.status === "Used");
+      setClaimedFoodTokensList(claimed.reverse());
+    }
+  };
+
+  // Re-fetch attendee list when selected event changes
+  useEffect(() => {
+    if (selectedEventId && !isFoodDistributor(currentVolunteer)) {
+      const allStudents = mockDB.getUsers().filter(u => u.role === "student");
+      const eventAttendees = allStudents.filter(u => 
+        u.checkInStatus?.eventAttendance?.[selectedEventId]?.present ||
+        u.attendedEvents?.includes(selectedEventId)
+      );
+      setEventAttendeesList(eventAttendees);
+    }
+  }, [selectedEventId]);
 
   const handleLogout = () => {
     mockDB.logoutUser();
     router.push("/login");
   };
 
-  const handleProcessScan = (rawScannedCode: string) => {
+  const handleProcessScan = async (rawScannedCode: string) => {
     if (!rawScannedCode || !rawScannedCode.trim()) return;
 
     let targetInput = rawScannedCode.trim();
+    let tokenType = "FOOD";
+
     try {
-      const parsed = JSON.parse(targetInput);
-      targetInput = parsed.participantId || parsed.registrationId || targetInput;
+      if (targetInput.startsWith("{")) {
+        const parsed = JSON.parse(targetInput);
+        if (parsed.type) tokenType = parsed.type;
+        targetInput = parsed.participantId || parsed.registrationId || parsed.tokenId || targetInput;
+      }
     } catch {}
 
     const curr = mockDB.getCurrentUser();
-    const volunteerId = curr ? `${curr.name} (${curr.id})` : "Gate Volunteer";
+    const volunteerId = curr ? `${curr.name} (${curr.id})` : "Volunteer";
+    const foodMode = isFoodDistributor(curr);
 
     try {
-      if (selectedScanMode === "gate") {
-        const student = mockDB.getUsers().find(u => u.id === targetInput || u.participantId === targetInput);
-        if (!student) throw new Error("Participant record not found.");
-        mockDB.logActivity(volunteerId, "Gate Volunteer", "GATE_ENTRY", `Verified gate entry for ${student.name} (${student.participantId || student.id})`);
-        setScanResult({ success: true, message: `Gate Entry verified for ${student.name}`, student });
+      if (foodMode) {
+        // ── FOOD DISTRIBUTOR SCAN ──
+        // Redeem food token or refreshment token
+        const redeemedToken = mockDB.redeemFoodToken(rawScannedCode.trim(), volunteerId);
+        setScanResult({
+          success: true,
+          message: `✓ Token Redeemed! Meal/Refreshment successfully served to ${redeemedToken.studentName || redeemedToken.participantId}.`,
+          token: redeemedToken
+        });
       } else {
-        const student = mockDB.scanEventAttendance(targetInput, selectedScanMode, volunteerId);
-        setScanResult({ success: true, message: `Attendance verified for ${student.name}`, student });
+        // ── EVENT ENTRY SCAN ──
+        // Verify event attendance and mark Present
+        const activeEventId = selectedEventId || curr?.volunteerDuty?.eventId || missions[0]?.id;
+        if (!activeEventId) {
+          throw new Error("No event selected. Please select a competition event to verify attendance.");
+        }
+
+        const student = mockDB.scanEventAttendance(targetInput, activeEventId, volunteerId);
+        const eventObj = missions.find(m => m.id === activeEventId);
+        setScanResult({
+          success: true,
+          message: `✓ Attendance Verified! Marked PRESENT for ${eventObj?.name || "the event"}.`,
+          student
+        });
       }
     } catch (err: any) {
-      setScanResult({ success: false, message: err.message || "Failed to verify scan" });
+      setScanResult({
+        success: false,
+        message: err.message || "Failed to process QR scan. Please verify code and try again."
+      });
     }
 
     setQrInput(targetInput);
-    fetchData();
+    fetchData(curr);
   };
 
   const handleScanSubmit = (e: React.FormEvent) => {
@@ -111,6 +194,9 @@ export default function VolunteerDashboard() {
     );
   }
 
+  const foodMode = isFoodDistributor(currentVolunteer);
+  const assignedMission = missions.find(m => m.id === (selectedEventId || currentVolunteer.volunteerDuty?.eventId));
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col relative cyber-grid selection:bg-orange-500 selection:text-slate-900 font-bold overflow-x-hidden max-w-full w-full">
       
@@ -127,12 +213,16 @@ export default function VolunteerDashboard() {
                   <span className="font-heading font-black text-sm sm:text-base tracking-wide text-slate-900 font-extrabold group-hover:text-orange-600 transition-colors">
                     {symposium?.name || "INTEGRA"} {symposium?.year || "2026"}
                   </span>
-                  <span className="text-[9px] sm:text-[9.5px] bg-orange-500/20 text-orange-600 border border-amber-500/40 font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    HOST STUDENT VOLUNTEER
+                  <span className={`text-[9px] sm:text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    foodMode
+                      ? "bg-amber-100 text-amber-900 border border-amber-300"
+                      : "bg-blue-100 text-blue-900 border border-blue-300"
+                  }`}>
+                    {foodMode ? "🍱 FOOD DISTRIBUTOR DESK" : "🎯 EVENT ENTRY VERIFICATION"}
                   </span>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-600 font-mono mt-0.5">
-                  Organizing Department (Dept of Computer Science) • Crew: <strong className="text-orange-600">{currentVolunteer?.name || "Student Crew"}</strong>
+                  Volunteer: <strong className={foodMode ? "text-amber-700" : "text-blue-700"}>{currentVolunteer?.name || "Student Volunteer"}</strong> • {currentVolunteer?.department || "Crew"}
                 </p>
               </div>
             </Link>
@@ -140,9 +230,9 @@ export default function VolunteerDashboard() {
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button 
-              onClick={fetchData} 
-              className="p-1.5 sm:p-2 rounded-xl bg-slate-100 border border-slate-300 text-orange-600 hover:bg-slate-700 cursor-pointer shadow-xs"
-              title="Refresh logs"
+              onClick={() => fetchData()} 
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-100 border border-slate-300 text-slate-700 hover:bg-slate-200 cursor-pointer shadow-xs"
+              title="Refresh logs & sync"
             >
               <RefreshCw size={14} />
             </button>
@@ -166,89 +256,113 @@ export default function VolunteerDashboard() {
           
           {/* Volunteer Station Assignment Banner */}
           {currentVolunteer?.volunteerDuty && (
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 border border-orange-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-mono">
+            <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-mono shadow-sm ${
+              foodMode ? "bg-amber-50 border-amber-200" : "bg-blue-50 border-blue-200"
+            }`}>
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-orange-600 text-white flex items-center justify-center font-bold">
-                  <UserCheck size={16} />
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white shrink-0 ${
+                  foodMode ? "bg-amber-600" : "bg-blue-600"
+                }`}>
+                  {foodMode ? <Utensils size={18} /> : <UserCheck size={18} />}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <strong className="text-slate-900 font-extrabold">{currentVolunteer.name}</strong>
-                    <span className="text-[10px] bg-orange-500/20 text-orange-600 border border-amber-500/40 px-2 py-0.5 rounded font-bold uppercase">
-                      {currentVolunteer.volunteerDuty.station}
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                      foodMode 
+                        ? "bg-amber-200 text-amber-900 border border-amber-300" 
+                        : "bg-blue-200 text-blue-900 border border-blue-300"
+                    }`}>
+                      {foodMode ? "Food & Refreshment Distributor" : "Event Entry Volunteer"}
                     </span>
                   </div>
-                  <p className="text-slate-600 text-[11px] font-sans">
-                    Station: <strong className="text-slate-900 font-bold">{currentVolunteer.volunteerDuty.venueName || currentVolunteer.volunteerDuty.eventName || "Campus Post"}</strong> • Shift: {currentVolunteer.volunteerDuty.shift || "Full Day"}
+                  <p className="text-slate-600 text-[11px] font-sans mt-0.5">
+                    Assigned: <strong className="text-slate-900 font-bold">
+                      {foodMode 
+                        ? (currentVolunteer.volunteerDuty.venueName || "Dining Hall / Food Counters") 
+                        : (assignedMission ? `${assignedMission.name} (${assignedMission.venue})` : currentVolunteer.volunteerDuty.venueName || "Competition Venue")}
+                    </strong> • Shift: {currentVolunteer.volunteerDuty.shift || "Full Day"}
                   </p>
                 </div>
               </div>
 
               {currentVolunteer.volunteerDuty.notes && (
-                <span className="text-[10px] text-orange-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg border border-orange-200 font-mono">
+                <span className={`text-[10px] px-2.5 py-1 rounded-lg font-mono border ${
+                  foodMode ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-blue-100 text-blue-900 border-blue-300"
+                }`}>
                   📋 {currentVolunteer.volunteerDuty.notes}
                 </span>
               )}
             </div>
           )}
 
-          <div className="bg-white border border-amber-500/20 p-6 rounded-2xl relative overflow-hidden shadow-xl">
+          {/* Scanner Box */}
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl relative overflow-hidden shadow-xl">
             <div className="scanner-ray" />
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <h2 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
-                <QrCode size={18} className="text-orange-600" /> QR Attendance Scanner
-              </h2>
+              <div>
+                <h2 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+                  <QrCode size={18} className={foodMode ? "text-amber-600" : "text-blue-600"} />
+                  {foodMode ? "Food & Refreshment Token Scanner" : "Event Attendance QR Scanner"}
+                </h2>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                  {foodMode 
+                    ? "Scan participant Food Token QR or Refreshment Token QR to claim meal" 
+                    : `Scan participant QR to verify attendance for: ${assignedMission?.name || "Assigned Competition"}`}
+                </p>
+              </div>
 
-              {/* Venue / Scan Mode Selector */}
-              <div className="flex items-center gap-2">
-                <MapPin size={15} className="text-orange-600 shrink-0" />
-                <select
-                  value={selectedScanMode}
-                  onChange={(e) => {
-                    setSelectedScanMode(e.target.value);
-                    setScanResult(null);
-                  }}
-                  className="bg-white border-2 border-orange-400/60 hover:border-orange-500 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-extrabold font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-sm"
-                >
-                  <option value="gate" className="text-slate-900 font-bold bg-white py-1">🏛️ Campus Main Gate Entry</option>
-                  <optgroup label="── Event Specific Venues ──" className="text-orange-800 font-extrabold bg-slate-100 py-1">
+              {/* Event Entry Mode: Dropdown to switch assigned competition event if needed */}
+              {!foodMode && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <MapPin size={15} className="text-blue-600 shrink-0" />
+                  <select
+                    value={selectedEventId}
+                    onChange={(e) => {
+                      setSelectedEventId(e.target.value);
+                      setScanResult(null);
+                    }}
+                    className="w-full sm:w-auto bg-white border-2 border-blue-400 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-extrabold font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                  >
                     {missions.map(m => (
-                      <option key={m.id} value={m.id} className="text-slate-900 font-bold bg-white py-1">
+                      <option key={m.id} value={m.id}>
                         🎯 {m.name} ({m.venue})
                       </option>
                     ))}
-                  </optgroup>
-                </select>
-              </div>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Live Camera QR Scanner Component */}
             <div className="mb-5">
               <CameraQRScanner
                 onScan={handleProcessScan}
-                title="Live Attendance Camera Scanner"
-                themeColor="#D97706"
-                placeholder="Point camera at participant's Hall Ticket QR or Pass ID..."
+                title={foodMode ? "Scan Food / Refreshment Token QR" : "Scan Participant Attendance QR"}
+                themeColor={foodMode ? "#D97706" : "#2563EB"}
+                placeholder={foodMode ? "Point camera at participant's Food or Refreshment Token QR..." : "Point camera at participant's ID Badge QR..."}
                 autoStart={true}
               />
             </div>
 
-            {/* Manual QR registration ID fallback submission form */}
+            {/* Manual ID fallback submission form */}
             <form onSubmit={handleScanSubmit} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 text-xs">
               <input
                 type="text"
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
-                placeholder="Or manually enter Participant ID (e.g. INT26-0045)..."
+                placeholder={foodMode ? "Or enter Participant ID / Token # (e.g. INT26-0045)..." : "Or manually enter Participant ID (e.g. INT26-0045)..."}
                 required
-                className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-slate-700 font-semibold text-slate-900 font-bold font-mono text-xs font-bold"
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-500 font-mono text-xs"
               />
               <button
                 type="submit"
-                className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2.5 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[11px] font-mono cursor-pointer shadow-lg shadow-orange-600/30 text-center"
+                className={`w-full sm:w-auto text-white font-bold px-5 py-2.5 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[11px] font-mono cursor-pointer shadow-lg text-center ${
+                  foodMode ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/30" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/30"
+                }`}
               >
-                Verify Attendance
+                {foodMode ? "Redeem Token" : "Verify Attendance"}
               </button>
             </form>
           </div>
@@ -257,27 +371,41 @@ export default function VolunteerDashboard() {
           {scanResult && (
             <div className={`p-4 rounded-2xl border text-xs shadow-xl ${
               scanResult.success 
-                ? "bg-emerald-50 border border-emerald-200 border-emerald-500/50 text-emerald-200" 
-                : "bg-rose-50 border border-rose-200 border-red-500/50 text-red-200"
+                ? "bg-emerald-50 border-emerald-300 text-emerald-950" 
+                : "bg-rose-50 border-rose-300 text-rose-950"
             }`}>
               <div className="flex gap-3 items-start">
                 {scanResult.success ? (
-                  <Check className="text-emerald-800 font-extrabold shrink-0 mt-0.5" size={20} />
+                  <Check className="text-emerald-700 shrink-0 mt-0.5" size={22} />
                 ) : (
-                  <ShieldAlert className="text-rose-900 font-extrabold shrink-0 mt-0.5" size={20} />
+                  <ShieldAlert className="text-rose-700 shrink-0 mt-0.5" size={22} />
                 )}
                 <div className="w-full">
-                  <h4 className="font-heading font-bold mb-1 uppercase tracking-wider">
-                    {scanResult.success ? "Attendance Verified & Logged" : "Attendance Check-In Denied"}
+                  <h4 className="font-heading font-extrabold mb-1 uppercase tracking-wider text-sm">
+                    {scanResult.success 
+                      ? (foodMode ? "Meal / Refreshment Token Redeemed" : "Event Attendance Verified & Logged") 
+                      : (foodMode ? "Token Redemption Denied / Already Claimed" : "Event Attendance Check-In Denied")}
                   </h4>
-                  <p className="leading-relaxed mb-2 font-medium font-sans">{scanResult.message}</p>
+                  <p className="leading-relaxed mb-2 font-medium font-sans text-xs">{scanResult.message}</p>
                   
+                  {/* Event attendee scan student card */}
                   {scanResult.student && (
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono text-slate-700 shadow-xs">
+                    <div className="p-3 bg-white rounded-xl border border-emerald-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono text-slate-700 shadow-xs">
                       <div>Name: <span className="text-slate-900 font-extrabold">{scanResult.student.name}</span></div>
                       <div>Participant ID: <span className="text-blue-900 font-extrabold">{scanResult.student.participantId || scanResult.student.id}</span></div>
                       <div className="sm:col-span-2">College: <span className="text-blue-700 font-bold">{scanResult.student.college}</span></div>
-                      <div className="sm:col-span-2">Payment: <span className="text-emerald-800 font-extrabold">{scanResult.student.paymentStatus}</span></div>
+                      <div>Status: <span className="text-emerald-700 font-extrabold">PRESENT</span></div>
+                      <div>Event: <span className="text-slate-900 font-bold">{assignedMission?.name}</span></div>
+                    </div>
+                  )}
+
+                  {/* Food token card */}
+                  {scanResult.token && (
+                    <div className="p-3 bg-white rounded-xl border border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono text-slate-700 shadow-xs">
+                      <div>Student: <span className="text-slate-900 font-extrabold">{scanResult.token.studentName || scanResult.token.participantId}</span></div>
+                      <div>Token #: <span className="text-amber-900 font-extrabold">{scanResult.token.tokenNumber || scanResult.token.id}</span></div>
+                      <div>Type: <span className="text-amber-700 font-bold">{scanResult.token.mealType || scanResult.token.foodType || "Meal"}</span></div>
+                      <div>Claimed At: <span className="text-emerald-700 font-extrabold">{scanResult.token.usedTime || "Now"}</span></div>
                     </div>
                   )}
                 </div>
@@ -288,29 +416,73 @@ export default function VolunteerDashboard() {
 
         {/* Checked-in Roster Sidebar & Emergency Help */}
         <div className="w-full lg:w-80 shrink-0 space-y-5 sm:space-y-6">
-          <div className="bg-white border border-amber-500/20 p-5 rounded-2xl max-h-[350px] overflow-y-auto scrollbar-thin shadow-xl">
-            <h3 className="text-xs font-heading uppercase text-orange-600 mb-3 font-bold flex items-center gap-1.5">
-              <UserCheck size={14} className="text-orange-500" /> Checked-In Attendees ({checkedInList.length})
-            </h3>
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl max-h-[420px] overflow-y-auto scrollbar-thin shadow-xl">
+            <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+              <h3 className={`text-xs font-heading uppercase font-bold flex items-center gap-1.5 ${
+                foodMode ? "text-amber-700" : "text-blue-700"
+              }`}>
+                {foodMode ? (
+                  <>
+                    <Utensils size={14} /> Claimed Meals ({claimedFoodTokensList.length})
+                  </>
+                ) : (
+                  <>
+                    <UserCheck size={14} /> Present Attendees ({eventAttendeesList.length})
+                  </>
+                )}
+              </h3>
+              <span className="text-[10px] font-mono text-slate-500">Live Counter</span>
+            </div>
             
-            {checkedInList.length === 0 ? (
-              <div className="text-center text-slate-700 font-semibold italic text-xs py-6 font-mono">
-                No check-in scans recorded yet in this session.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {checkedInList.map(s => (
-                  <div key={s.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center shadow-xs">
-                    <div>
-                      <strong className="text-slate-900 font-extrabold block font-semibold">{s.name}</strong>
-                      <span className="text-slate-600 font-mono text-[10px]">ID: {s.participantId || s.id}</span>
+            {/* Event entry volunteer list: Students marked Present */}
+            {!foodMode && (
+              eventAttendeesList.length === 0 ? (
+                <div className="text-center text-slate-500 italic text-xs py-8 font-mono space-y-1">
+                  <p>No attendees marked present yet.</p>
+                  <p className="text-[10px]">Point camera at participant QR codes to log attendance.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {eventAttendeesList.map(s => {
+                    const att = s.checkInStatus?.eventAttendance?.[selectedEventId];
+                    return (
+                      <div key={s.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center shadow-xs">
+                        <div>
+                          <strong className="text-slate-900 font-extrabold block">{s.name}</strong>
+                          <span className="text-slate-600 font-mono text-[10px]">ID: {s.participantId || s.id}</span>
+                        </div>
+                        <span className="font-mono text-emerald-800 text-[10px] font-bold bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                          {att?.time || s.checkInStatus?.time || "PRESENT"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
+
+            {/* Food distributor volunteer list: Claimed food tokens */}
+            {foodMode && (
+              claimedFoodTokensList.length === 0 ? (
+                <div className="text-center text-slate-500 italic text-xs py-8 font-mono space-y-1">
+                  <p>No meal tokens claimed yet.</p>
+                  <p className="text-[10px]">Scan participant Food QR codes to distribute meals.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {claimedFoodTokensList.map(t => (
+                    <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center shadow-xs">
+                      <div>
+                        <strong className="text-slate-900 font-extrabold block">{t.studentName || t.participantId}</strong>
+                        <span className="text-slate-600 font-mono text-[10px]">{t.tokenNumber || t.id}</span>
+                      </div>
+                      <span className="font-mono text-amber-800 text-[10px] font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                        {t.usedTime || "CLAIMED"}
+                      </span>
                     </div>
-                    <span className="font-mono text-slate-700 text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
-                      {s.checkInStatus?.time}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
 
