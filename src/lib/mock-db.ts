@@ -2056,14 +2056,14 @@ export const mockDB = {
     return newToken;
   },
 
-  redeemFoodToken: (rawInput: string, volunteerId: string = "VOLUNTEER"): FoodToken => {
+  redeemFoodToken: (rawInput: string, volunteerId: string = "VOLUNTEER", forcedTokenType?: "FOOD" | "REFRESHMENT"): FoodToken => {
     let targetInput = rawInput ? rawInput.trim() : "";
-    let tokenType = "FOOD";
+    let tokenType = forcedTokenType || "FOOD";
     
     try {
       if (targetInput.startsWith("{")) {
         const parsed = JSON.parse(targetInput);
-        if (parsed.type) tokenType = parsed.type;
+        if (!forcedTokenType && parsed.type) tokenType = parsed.type;
         targetInput = parsed.tokenId || parsed.participantId || targetInput;
       }
     } catch {}

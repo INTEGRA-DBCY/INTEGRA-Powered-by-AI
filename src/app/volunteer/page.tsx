@@ -20,6 +20,7 @@ export default function VolunteerDashboard() {
   const [eventAttendeesList, setEventAttendeesList] = useState<DBUser[]>([]);
 
   // Food Distributor Volunteer Mode state
+  const [distributionMode, setDistributionMode] = useState<"FOOD" | "REFRESHMENT">("FOOD");
   const [claimedFoodTokensList, setClaimedFoodTokensList] = useState<FoodToken[]>([]);
 
   // Scanner state
@@ -136,11 +137,11 @@ export default function VolunteerDashboard() {
     try {
       if (foodMode) {
         // ── FOOD DISTRIBUTOR SCAN ──
-        // Redeem food token or refreshment token
-        const redeemedToken = mockDB.redeemFoodToken(rawScannedCode.trim(), volunteerId);
+        // Redeem food token or refreshment token based on selected distributionMode
+        const redeemedToken = mockDB.redeemFoodToken(rawScannedCode.trim(), volunteerId, distributionMode);
         setScanResult({
           success: true,
-          message: `✓ Token Redeemed! Meal/Refreshment successfully served to ${redeemedToken.studentName || redeemedToken.participantId}.`,
+          message: `✓ ${distributionMode === "REFRESHMENT" ? "Refreshment Token" : "Lunch/Meal Token"} Redeemed! Successfully served to ${redeemedToken.studentName || redeemedToken.participantId}.`,
           token: redeemedToken
         });
       } else {
@@ -304,14 +305,52 @@ export default function VolunteerDashboard() {
               <div>
                 <h2 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
                   <QrCode size={18} className={foodMode ? "text-amber-600" : "text-blue-600"} />
-                  {foodMode ? "Food & Refreshment Token Scanner" : "Event Attendance QR Scanner"}
+                  {foodMode 
+                    ? (distributionMode === "FOOD" ? "Lunch / Meal Token Scanner" : "Refreshment & Snacks Token Scanner") 
+                    : "Event Attendance QR Scanner"}
                 </h2>
                 <p className="text-xs text-slate-500 font-mono mt-0.5">
                   {foodMode 
-                    ? "Scan participant Food Token QR or Refreshment Token QR to claim meal" 
+                    ? `Mode: ${distributionMode === "FOOD" ? "Lunch / Meals" : "Refreshments & Snacks"} — Point camera at participant's QR code` 
                     : `Scan participant QR to verify attendance for: ${assignedMission?.name || "Assigned Competition"}`}
                 </p>
               </div>
+
+              {/* Food Distributor Mode: Toggle Food vs Refreshment */}
+              {foodMode && (
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-300">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDistributionMode("FOOD");
+                      setScanResult(null);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      distributionMode === "FOOD"
+                        ? "bg-amber-600 text-white shadow-sm"
+                        : "text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <Utensils size={13} />
+                    <span>Lunch / Food</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDistributionMode("REFRESHMENT");
+                      setScanResult(null);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      distributionMode === "REFRESHMENT"
+                        ? "bg-amber-600 text-white shadow-sm"
+                        : "text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>☕</span>
+                    <span>Refreshment</span>
+                  </button>
+                </div>
+              )}
 
               {/* Event Entry Mode: Locked to assigned event */}
               {!foodMode && (
@@ -330,9 +369,9 @@ export default function VolunteerDashboard() {
             <div className="mb-5">
               <CameraQRScanner
                 onScan={handleProcessScan}
-                title={foodMode ? "Scan Food / Refreshment Token QR" : "Scan Participant Attendance QR"}
+                title={foodMode ? (distributionMode === "FOOD" ? "Scan Lunch / Meal QR Code" : "Scan Refreshment QR Code") : "Scan Participant Attendance QR"}
                 themeColor={foodMode ? "#D97706" : "#2563EB"}
-                placeholder={foodMode ? "Point camera at participant's Food or Refreshment Token QR..." : "Point camera at participant's ID Badge QR..."}
+                placeholder={foodMode ? `Point camera at participant's ${distributionMode === "FOOD" ? "Lunch" : "Refreshment"} QR code...` : "Point camera at participant's ID Badge QR..."}
                 autoStart={true}
               />
             </div>
@@ -343,7 +382,7 @@ export default function VolunteerDashboard() {
                 type="text"
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
-                placeholder={foodMode ? "Or enter Participant ID / Token # (e.g. INT26-0045)..." : "Or manually enter Participant ID (e.g. INT26-0045)..."}
+                placeholder={foodMode ? `Or enter Participant ID for ${distributionMode === "FOOD" ? "Lunch" : "Refreshment"} (e.g. INT26-0045)...` : "Or manually enter Participant ID (e.g. INT26-0045)..."}
                 required
                 className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-500 font-mono text-xs"
               />
@@ -353,7 +392,7 @@ export default function VolunteerDashboard() {
                   foodMode ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/30" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/30"
                 }`}
               >
-                {foodMode ? "Redeem Token" : "Verify Attendance"}
+                {foodMode ? (distributionMode === "FOOD" ? "Redeem Lunch" : "Redeem Refreshment") : "Verify Attendance"}
               </button>
             </form>
           </div>
@@ -414,7 +453,7 @@ export default function VolunteerDashboard() {
               }`}>
                 {foodMode ? (
                   <>
-                    <Utensils size={14} /> Claimed Meals ({claimedFoodTokensList.length})
+                    <Utensils size={14} /> Claimed Tokens ({claimedFoodTokensList.length})
                   </>
                 ) : (
                   <>
@@ -456,8 +495,8 @@ export default function VolunteerDashboard() {
             {foodMode && (
               claimedFoodTokensList.length === 0 ? (
                 <div className="text-center text-slate-500 italic text-xs py-8 font-mono space-y-1">
-                  <p>No meal tokens claimed yet.</p>
-                  <p className="text-[10px]">Scan participant Food QR codes to distribute meals.</p>
+                  <p>No {distributionMode === "FOOD" ? "meal" : "refreshment"} tokens claimed yet.</p>
+                  <p className="text-[10px]">Scan participant {distributionMode === "FOOD" ? "Food" : "Refreshment"} QR codes to distribute.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -465,7 +504,12 @@ export default function VolunteerDashboard() {
                     <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center shadow-xs">
                       <div>
                         <strong className="text-slate-900 font-extrabold block">{t.studentName || t.participantId}</strong>
-                        <span className="text-slate-600 font-mono text-[10px]">{t.tokenNumber || t.id}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-slate-600 font-mono text-[10px]">{t.tokenNumber || t.id}</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                            {t.mealType || t.foodType || "Meal"}
+                          </span>
+                        </div>
                       </div>
                       <span className="font-mono text-amber-800 text-[10px] font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
                         {t.usedTime || "CLAIMED"}
