@@ -1007,37 +1007,21 @@ const memoryStore: CloudDatabaseStore = {
 const purgeLegacyLocalStorage = () => {
   if (typeof window === "undefined") return;
   try {
-    const keys = [
-      "int_users", "int_missions", "int_symposiums", "int_teams", "int_join_requests",
-      "int_food_tokens", "int_refreshment_stalls", "int_refreshment_txns", "int_refreshment_tokens",
-      "int_activity_logs", "int_scores", "int_certificates", "int_colleges", "int_settings",
-      "int_db_seeded_v3", "int_db_seeded_v2", "int_active_symposium_id", "int_deleted_ids",
-      "int_curr_user", "integra_cloud_snapshot_v1", "integra_cloud_snapshot_v2",
-      "integra_cloud_snapshot_v3", "integra_cloud_snapshot_v4", "integra_cloud_snapshot_v5",
-      "integra_cloud_snapshot_v6", "integra_cloud_snapshot_v7", "integra_cloud_snapshot_v8",
-      "integra_cloud_snapshot_v9", "integra_cloud_snapshot_v10", "integra_cloud_snapshot_v11",
-      "integra_cloud_snapshot_v12", "integra_cloud_snapshot_v13", "integra_cloud_snapshot_v14",
-      "integra_cloud_snapshot_v15", "integra_cloud_snapshot_v16"
-    ];
-    for (const k of keys) {
-      localStorage.removeItem(k);
-    }
-    // Purge any key starting with integra_cloud_snapshot_ that is not current version
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      if (k && k.startsWith("integra_cloud_snapshot_") && k !== CLOUD_SNAPSHOT_KEY) {
+      if (k && (k.startsWith("integra_") || k.startsWith("int_"))) {
         localStorage.removeItem(k);
       }
     }
   } catch {}
 };
 
-// Current user session is stored in sessionStorage (tab session only, no persistent stale localStorage)
+// Current user session is stored strictly in sessionStorage (tab-scoped, discarded on close, zero localStorage)
 const getSessionUser = (): User | null => {
   if (memoryStore.currentUser) return memoryStore.currentUser;
   if (typeof window === "undefined") return null;
   try {
-    const s = sessionStorage.getItem("int_session_user") || localStorage.getItem("int_session_user");
+    const s = sessionStorage.getItem("int_session_user");
     if (s) {
       const parsed = JSON.parse(s);
       memoryStore.currentUser = parsed;
@@ -1054,7 +1038,7 @@ const setSessionUser = (user: User | null) => {
     if (typeof window === "undefined") return;
     try {
       sessionStorage.setItem("int_session_user", JSON.stringify(safeUser));
-      localStorage.setItem("int_session_user", JSON.stringify(safeUser));
+      localStorage.removeItem("int_session_user");
     } catch {}
   } else {
     memoryStore.currentUser = null;
@@ -1065,71 +1049,15 @@ const setSessionUser = (user: User | null) => {
     } catch {}
   }
 };
-const CLOUD_SNAPSHOT_KEY = "integra_cloud_snapshot_v17";
 
+// LocalStorage caching is completely disabled — real-time Cloud Firestore is the single source of truth
 const saveCloudSnapshotToLocalStorage = () => {
-  if (typeof window === "undefined") return;
-  try {
-    const sanitizedUsers = memoryStore.users.map(u => {
-      const { password, ...safe } = u;
-      return safe;
-    });
-    const snapshot = {
-      missions: memoryStore.missions,
-      users: sanitizedUsers,
-      teams: memoryStore.teams,
-      colleges: memoryStore.colleges,
-      settings: memoryStore.settings,
-      scores: memoryStore.scores,
-      stalls: memoryStore.stalls,
-      deletedIds: Array.from(memoryStore.deletedIds),
-      activeSymposiumId: memoryStore.activeSymposiumId,
-      timestamp: Date.now()
-    };
-    localStorage.setItem(CLOUD_SNAPSHOT_KEY, JSON.stringify(snapshot));
-  } catch (e) {}
+  // No-op: LocalStorage snapshot caching permanently removed
 };
 
 const loadCloudSnapshotFromLocalStorage = () => {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(CLOUD_SNAPSHOT_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      if (Array.isArray(parsed.missions)) memoryStore.missions = parsed.missions;
-      if (Array.isArray(parsed.users)) {
-        const deletedIds = memoryStore.deletedIds;
-        const defaultMap = new Map(DEFAULT_USERS.map(u => [(u.email || "").toLowerCase().trim(), u]));
-        const cleanedUsers = parsed.users
-          .filter((u: any) => !deletedIds.has(u.id) && !deletedIds.has((u.email || "").toLowerCase().trim()))
-          .map((u: any) => {
-            const { password, ...safeU } = u;
-            const def = defaultMap.get((u.email || "").toLowerCase().trim());
-            if (def && def.role !== "student") {
-              return { ...safeU, role: def.role, name: def.name };
-            }
-            return safeU;
-          });
-        memoryStore.users = cleanedUsers;
-      }
-      if (Array.isArray(parsed.teams)) memoryStore.teams = parsed.teams;
-      if (Array.isArray(parsed.colleges)) memoryStore.colleges = parsed.colleges;
-      if (parsed.settings) memoryStore.settings = { ...memoryStore.settings, ...parsed.settings };
-      if (Array.isArray(parsed.scores)) memoryStore.scores = parsed.scores;
-      if (Array.isArray(parsed.stalls)) memoryStore.stalls = parsed.stalls;
-      if (Array.isArray(parsed.deletedIds)) {
-        memoryStore.deletedIds = new Set(parsed.deletedIds);
-        memoryStore.deletedIds.delete("INT26-0001");
-        memoryStore.deletedIds.delete("INT26-0002");
-        memoryStore.deletedIds.delete("INT26-0003");
-        memoryStore.deletedIds.delete("INT26-0004");
-      }
-      if (parsed.activeSymposiumId) memoryStore.activeSymposiumId = parsed.activeSymposiumId;
-    }
-  } catch (e) {}
+  // No-op: LocalStorage snapshot loading permanently removed
 };
-
 
 const markDeletedId = (id: string) => {
   if (!id) return;
@@ -1145,9 +1073,7 @@ export const mockDB = {
   init: () => {
     if (!memoryStore.isInitialized) {
       purgeLegacyLocalStorage();
-      loadCloudSnapshotFromLocalStorage();
-      saveCloudSnapshotToLocalStorage();
-        memoryStore.isInitialized = true;
+      memoryStore.isInitialized = true;
       if (typeof window !== "undefined") {
         mockDB.syncFromCloud(true).catch(console.error);
       }

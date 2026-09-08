@@ -23,7 +23,7 @@ export default function SuperAdminDashboard() {
   const [activeTab, setActiveTabState] = useState<"editions" | "staff" | "colleges" | "security" | "logs">(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("int_superadmin_active_tab") as any;
+        const saved = sessionStorage.getItem("int_superadmin_active_tab") as any;
         if (["editions", "staff", "colleges", "security", "logs"].includes(saved)) return saved;
       } catch {}
     }
@@ -34,8 +34,8 @@ export default function SuperAdminDashboard() {
     setActiveTabState(tab);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("int_superadmin_active_tab", tab);
         sessionStorage.setItem("int_superadmin_active_tab", tab);
+        localStorage.removeItem("int_superadmin_active_tab");
       } catch {}
     }
   };

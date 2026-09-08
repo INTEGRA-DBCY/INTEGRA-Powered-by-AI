@@ -26,21 +26,23 @@ export default function MockEmailClient() {
 
   const loadEmails = () => {
     if (typeof window !== "undefined") {
-      const stored = JSON.parse(localStorage.getItem("int_mock_emails") || "[]");
+      const stored = JSON.parse(sessionStorage.getItem("int_mock_emails") || "[]");
       setEmails(stored);
     }
   };
 
   const markAllAsRead = () => {
     const updated = emails.map(e => ({ ...e, read: true }));
-    localStorage.setItem("int_mock_emails", JSON.stringify(updated));
+    sessionStorage.setItem("int_mock_emails", JSON.stringify(updated));
+    localStorage.removeItem("int_mock_emails");
     setEmails(updated);
   };
 
   const deleteEmail = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const updated = emails.filter(email => email.id !== id);
-    localStorage.setItem("int_mock_emails", JSON.stringify(updated));
+    sessionStorage.setItem("int_mock_emails", JSON.stringify(updated));
+    localStorage.removeItem("int_mock_emails");
     setEmails(updated);
     if (activeEmail?.id === id) {
       setActiveEmail(null);
@@ -50,7 +52,8 @@ export default function MockEmailClient() {
   const handleEmailClick = (email: MockEmail) => {
     setActiveEmail(email);
     const updated = emails.map(e => e.id === email.id ? { ...e, read: true } : e);
-    localStorage.setItem("int_mock_emails", JSON.stringify(updated));
+    sessionStorage.setItem("int_mock_emails", JSON.stringify(updated));
+    localStorage.removeItem("int_mock_emails");
     setEmails(updated);
   };
 

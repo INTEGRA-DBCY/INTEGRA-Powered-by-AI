@@ -22,7 +22,7 @@ export default function CoordinatorDashboard() {
   const [activeTab, setActiveTabState] = useState<"roster" | "volunteers">(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("int_coord_active_tab") as any;
+        const saved = sessionStorage.getItem("int_coord_active_tab") as any;
         if (saved === "roster" || saved === "volunteers") return saved;
       } catch {}
     }
@@ -33,8 +33,8 @@ export default function CoordinatorDashboard() {
     setActiveTabState(tab);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("int_coord_active_tab", tab);
         sessionStorage.setItem("int_coord_active_tab", tab);
+        localStorage.removeItem("int_coord_active_tab");
       } catch {}
     }
   };

@@ -132,7 +132,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTabState] = useState<string>(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("int_admin_active_tab") || sessionStorage.getItem("int_admin_active_tab");
+        const saved = sessionStorage.getItem("int_admin_active_tab");
         if (saved) return saved;
       } catch {}
     }
@@ -143,8 +143,8 @@ export default function AdminDashboard() {
     setActiveTabState(tab);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("int_admin_active_tab", tab);
         sessionStorage.setItem("int_admin_active_tab", tab);
+        localStorage.removeItem("int_admin_active_tab");
       } catch {}
     }
   };
