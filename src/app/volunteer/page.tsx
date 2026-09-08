@@ -313,24 +313,15 @@ export default function VolunteerDashboard() {
                 </p>
               </div>
 
-              {/* Event Entry Mode: Dropdown to switch assigned competition event if needed */}
+              {/* Event Entry Mode: Locked to assigned event */}
               {!foodMode && (
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <MapPin size={15} className="text-blue-600 shrink-0" />
-                  <select
-                    value={selectedEventId}
-                    onChange={(e) => {
-                      setSelectedEventId(e.target.value);
-                      setScanResult(null);
-                    }}
-                    className="w-full sm:w-auto bg-white border-2 border-blue-400 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-extrabold font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
-                  >
-                    {missions.map(m => (
-                      <option key={m.id} value={m.id}>
-                        🎯 {m.name} ({m.venue})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2 bg-blue-50 border-2 border-blue-400 rounded-xl px-3.5 py-2 text-xs font-mono shadow-xs">
+                    <MapPin size={15} className="text-blue-600 shrink-0" />
+                    <span className="text-blue-900 font-extrabold uppercase tracking-wide">
+                      🎯 {assignedMission?.name || currentVolunteer.volunteerDuty?.eventName || "Assigned Event"} ({assignedMission?.venue || currentVolunteer.volunteerDuty?.venueName || "Venue"})
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
