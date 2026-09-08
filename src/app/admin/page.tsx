@@ -658,6 +658,7 @@ export default function AdminDashboard() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newUserPassword, setNewUserPassword] = useState("");
   const [visiblePasswordMap, setVisiblePasswordMap] = useState<Record<string, boolean>>({});
+  const [sessionPlaintextMap, setSessionPlaintextMap] = useState<Record<string, string>>({});
   const [passManagerSearch, setPassManagerSearch] = useState("");
   const [passManagerRoleFilter, setPassManagerRoleFilter] = useState("all");
 
@@ -1247,6 +1248,7 @@ export default function AdminDashboard() {
           }
         }
 
+        setSessionPlaintextMap(prev => ({ ...prev, [userId]: newPass.trim() }));
         await mockDB.syncFromCloud(true);
         fetchData();
         setEditingUserId(null);
@@ -6092,19 +6094,52 @@ export default function AdminDashboard() {
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2">
-                              <code className="font-mono text-xs bg-slate-100 border border-slate-200 px-2 py-1 rounded font-bold text-blue-700">
-                                {visiblePasswordMap[u.id] ? (u.password || "••••••••") : "••••••••"}
-                              </code>
-                              <button
-                                type="button"
-                                onClick={() => setVisiblePasswordMap(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
-                                className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 cursor-pointer transition-colors"
-                                title={visiblePasswordMap[u.id] ? "Hide Password" : "Reveal Password"}
-                              >
-                                {visiblePasswordMap[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                              </button>
-                            </div>
+                            (() => {
+                              const isHash = Boolean(u.password && /^[a-f0-9]{64}$/i.test(u.password));
+                              const knownPlain = sessionPlaintextMap[u.id];
+                              const isVisible = visiblePasswordMap[u.id];
+                              return (
+                                <div className="flex items-center gap-2">
+                                  {isVisible ? (
+                                    knownPlain ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <code className="font-mono text-xs bg-emerald-50 border border-emerald-300 text-emerald-800 px-2 py-1 rounded font-bold">
+                                          {knownPlain}
+                                        </code>
+                                        <span className="text-[9px] font-mono font-bold bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded border border-emerald-300">
+                                          ACTIVE
+                                        </span>
+                                      </div>
+                                    ) : isHash ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <code className="font-mono text-[11px] bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded font-semibold" title={u.password || ""}>
+                                          🔒 SHA-256: {u.password ? `${u.password.slice(0, 6)}...${u.password.slice(-4)}` : "PROTECTED"}
+                                        </code>
+                                        <span className="text-[9px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                                          ENCRYPTED
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <code className="font-mono text-xs bg-slate-100 border border-slate-200 px-2 py-1 rounded font-bold text-blue-700">
+                                        {u.password || "••••••••"}
+                                      </code>
+                                    )
+                                  ) : (
+                                    <code className="font-mono text-xs bg-slate-100 border border-slate-200 px-2 py-1 rounded font-bold text-slate-400">
+                                      ••••••••
+                                    </code>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setVisiblePasswordMap(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
+                                    className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 cursor-pointer transition-colors"
+                                    title={visiblePasswordMap[u.id] ? "Hide Password" : "Reveal Password"}
+                                  >
+                                    {visiblePasswordMap[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  </button>
+                                </div>
+                              );
+                            })()
                           )}
                         </td>
                         <td className="py-3 px-4 text-right">
@@ -6125,7 +6160,10 @@ export default function AdminDashboard() {
                             </div>
                           ) : (
                             <button
-                              onClick={() => { setEditingUserId(u.id); setNewUserPassword(u.password || "student123"); }}
+                              onClick={() => { 
+                                setEditingUserId(u.id); 
+                                setNewUserPassword(sessionPlaintextMap[u.id] || (u.password && /^[a-f0-9]{64}$/i.test(u.password) ? "" : u.password || "")); 
+                              }}
                               className="bg-indigo-50 border border-indigo-200 hover:bg-purple-900 text-blue-700 border border-purple-500/40 px-3 py-1.5 rounded-xl cursor-pointer text-xs font-mono font-bold transition-all"
                             >
                               Edit Passcode
