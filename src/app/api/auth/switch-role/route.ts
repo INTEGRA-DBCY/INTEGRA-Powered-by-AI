@@ -22,9 +22,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { targetUserId, targetRole, targetName, targetEmail } = body;
-
     if (!targetRole) {
       return NextResponse.json({ error: "Target role is required." }, { status: 400 });
+    }
+
+    // Role Escalation Defense: Only a super_admin can switch to super_admin
+    const normalizedTargetRole = targetRole === "superadmin" ? "super_admin" : targetRole;
+    if (normalizedTargetRole === "super_admin" && currentSession.role !== "super_admin") {
+      return NextResponse.json({ error: "Permission denied. Only Super Administrators may switch to the Super Administrator role." }, { status: 403 });
     }
 
     // Sign a temporary impersonation session token (1 hour)

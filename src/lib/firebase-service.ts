@@ -251,16 +251,17 @@ export const firebaseService = {
         clean.password = await hashPassword(clean.password);
       }
 
-      // 1. Dual-Sync: Guaranteed server API persistence
+      // 1. Dual-Sync: Guaranteed server API persistence (when logged in as staff)
       if (typeof window !== "undefined") {
         try {
           await fetch("/api/admin/save-user", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({ user: clean, action: "save" })
           });
-        } catch (apiErr) {
-          console.warn("Server API save-user fallback:", apiErr);
+        } catch {
+          // Fallback handled by direct Firestore SDK below
         }
       }
 
@@ -406,6 +407,7 @@ export const firebaseService = {
             await fetch("/api/admin/save-user", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({ userId: tid, action: "delete" })
             });
           } catch {}

@@ -134,12 +134,12 @@ export async function POST(req: NextRequest) {
         <td style="vertical-align:top;">
           <table style="width:100%;border-collapse:collapse;">
             ${[
-              ["NAME", name, "#0f172a", "14px", "800"],
-              ["COLLEGE", college, "#1e293b", "12px", "700"],
-              ["DEPARTMENT", department, "#334155", "12px", "600"],
-              ["YEAR", year, "#334155", "12px", "600"],
-              ["MOBILE", phone || "—", "#334155", "12px", "600"],
-              ["EMAIL", email, "#334155", "12px", "600"],
+              ["NAME", safeName, "#0f172a", "14px", "800"],
+              ["COLLEGE", safeCollege, "#1e293b", "12px", "700"],
+              ["DEPARTMENT", safeDept, "#334155", "12px", "600"],
+              ["YEAR", safeYear, "#334155", "12px", "600"],
+              ["MOBILE", safePhone || "—", "#334155", "12px", "600"],
+              ["EMAIL", escapeHtml(email), "#334155", "12px", "600"],
             ].map(([label, val, color, size, weight]) => `
               <tr style="border-bottom:1px dashed #cbd5e1;">
                 <td style="padding:5px 0;font-size:10px;font-weight:800;color:#64748b;width:95px;letter-spacing:0.5px;">${label}</td>

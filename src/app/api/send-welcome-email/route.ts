@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
 
     const loginUsername = username || email;
     const loginPassword = password || "student123";
+    const safeUsername = escapeHtml(loginUsername);
+    const safePassword = escapeHtml(loginPassword);
 
     // --- SMTP Transporter ---
     const rawUser = process.env.SMTP_USER || "integra@dbcyelagiri.edu.in";
@@ -130,7 +132,7 @@ export async function POST(req: NextRequest) {
   </div>
 
   <div class="content">
-    <p class="greeting">Dear ${name},</p>
+    <p class="greeting">Dear ${safeName},</p>
     <p class="hero-text">🤖✨ Welcome to INTEGRA – Powered by AI!</p>
     <p class="paragraph">
       We’re excited to have you join us for an exciting journey of <strong>Technology • Innovation • Creativity • Talent</strong>, organized by the <strong>PG &amp; Research Department of Computer Science, Don Bosco College (Co-Ed), Yelagiri Hills</strong>.
@@ -141,11 +143,11 @@ export async function POST(req: NextRequest) {
       <div class="auth-header">🔐 YOUR LOGIN DETAILS</div>
       <div class="cred-row">
         <span class="cred-label">👤 Username:</span>
-        <span class="cred-val accent">${loginUsername}</span>
+        <span class="cred-val accent">${safeUsername}</span>
       </div>
       <div class="cred-row">
         <span class="cred-label">🔑 Password:</span>
-        <span class="cred-val pass">${loginPassword}</span>
+        <span class="cred-val pass">${safePassword}</span>
       </div>
       <div class="cred-row">
         <span class="cred-label">🌐 Login:</span>

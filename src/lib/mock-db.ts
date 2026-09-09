@@ -2565,6 +2565,7 @@ export const mockDB = {
         await fetch("/api/admin/save-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ userId, newPassword: cleanPass, action: "update_password" })
         });
       } catch (e) {
