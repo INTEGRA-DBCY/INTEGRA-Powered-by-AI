@@ -105,12 +105,6 @@ export default function RegisterPage() {
       }
     }
 
-    // Shift validation for colleges with mandatory shifts
-    const selectedCollegeObj = colleges.find(c => c.name === formData.college);
-    if (selectedCollegeObj?.hasShifts && !formData.shift) {
-      setValidationError(`Please select your shift (Shift I or Shift II) for ${selectedCollegeObj.name}.`);
-      return;
-    }
 
     const deptVal = validateDepartment(formData.department);
     if (!deptVal.valid) {
@@ -172,8 +166,6 @@ export default function RegisterPage() {
       setIsSubmitting(false);
     }
   };
-
-  const selectedCollegeObj = colleges.find(c => c.name === formData.college);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 py-12 px-4 relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold">
@@ -428,48 +420,76 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
-              <div>
-                <label className="block text-slate-700 text-[10.5px] font-mono mb-1 uppercase tracking-widest font-bold">Academic Year *</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3.5 top-2.5 text-slate-600" size={16} />
-                  <select
-                    name="year"
-                    value={formData.year}
-                    onChange={handleTextChange}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono cursor-pointer"
-                  >
-                    <option value="1st Year">1st Year</option>
-                    <option value="2nd Year">2nd Year</option>
-                    <option value="3rd Year">3rd Year</option>
-                    <option value="Final Year">Final Year</option>
-                    <option value="Post Graduate (PG)">Post Graduate (PG)</option>
-                  </select>
-                </div>
+            <div>
+              <label className="block text-slate-700 text-[10.5px] font-mono mb-1 uppercase tracking-widest font-bold">Academic Year *</label>
+              <div className="relative">
+                <Calendar className="absolute left-3.5 top-2.5 text-slate-600" size={16} />
+                <select
+                  name="year"
+                  value={formData.year}
+                  onChange={handleTextChange}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono cursor-pointer"
+                >
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="Final Year">Final Year</option>
+                  <option value="Post Graduate (PG)">Post Graduate (PG)</option>
+                </select>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-slate-700 text-[10.5px] font-mono mb-1 uppercase tracking-widest font-bold flex items-center justify-between">
-                  <span>Shift {selectedCollegeObj?.hasShifts ? <span className="text-purple-600">*</span> : <span className="text-slate-500 font-normal lowercase">(if applicable)</span>}</span>
-                  {selectedCollegeObj?.hasShifts && (
-                    <span className="text-[9.5px] text-purple-600 font-bold bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
-                      Dual Shift
-                    </span>
-                  )}
+            {/* Shift Option for Those Applicable */}
+            <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-slate-800 text-[11px] font-mono uppercase tracking-wider font-bold flex items-center gap-1.5">
+                  <Clock size={14} className="text-purple-600" />
+                  <span>College Shift Option</span>
                 </label>
-                <div className="relative">
-                  <Clock className="absolute left-3.5 top-2.5 text-slate-600" size={16} />
-                  <select
-                    name="shift"
-                    value={formData.shift}
-                    onChange={handleTextChange}
-                    className={`w-full bg-slate-50 border ${selectedCollegeObj?.hasShifts && !formData.shift ? "border-purple-400 bg-purple-50/20" : "border-slate-300"} rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono cursor-pointer`}
-                  >
-                    <option value="">{selectedCollegeObj?.hasShifts ? "Select Shift *" : "Not Applicable / Regular"}</option>
-                    <option value="Shift I">Shift I (Day / Morning)</option>
-                    <option value="Shift II">Shift II (Evening / Self-Financed)</option>
-                  </select>
-                </div>
+                <span className="text-[10px] font-mono text-purple-700 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full font-bold">
+                  If Applicable
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mb-2 font-sans leading-tight">
+                For colleges with multiple shifts, select your shift below:
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, shift: "" }))}
+                  className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                    !formData.shift
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>Regular / N/A</span>
+                  <span className={`text-[9px] ${!formData.shift ? "text-purple-200" : "text-slate-500"} font-normal`}>Single Shift</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, shift: "Shift I" }))}
+                  className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                    formData.shift === "Shift I"
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>Shift I</span>
+                  <span className={`text-[9px] ${formData.shift === "Shift I" ? "text-purple-200" : "text-slate-500"} font-normal`}>Day / Morning</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, shift: "Shift II" }))}
+                  className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                    formData.shift === "Shift II"
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>Shift II</span>
+                  <span className={`text-[9px] ${formData.shift === "Shift II" ? "text-purple-200" : "text-slate-500"} font-normal`}>Evening / SF</span>
+                </button>
               </div>
             </div>
 

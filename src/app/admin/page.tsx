@@ -542,9 +542,7 @@ export default function AdminDashboard() {
         id: editingCollegeId,
         name: colName.trim(),
         code: colCode.trim().toUpperCase(),
-        points: colPoints || 0,
-        hasShifts: colHasShifts,
-        shifts: colHasShifts ? ["Shift I", "Shift II"] : []
+        points: colPoints || 0
       });
       setEditingCollegeId(null);
       alert("College details updated successfully!");
@@ -560,9 +558,7 @@ export default function AdminDashboard() {
         id: colId,
         name: colName.trim(),
         code: colCode.trim().toUpperCase(),
-        points: 0,
-        hasShifts: colHasShifts,
-        shifts: colHasShifts ? ["Shift I", "Shift II"] : []
+        points: 0
       });
       alert("New college profile registered successfully!");
     }
@@ -570,7 +566,6 @@ export default function AdminDashboard() {
     setColName("");
     setColCode("");
     setColPoints(0);
-    setColHasShifts(false);
     fetchData();
   };
 
@@ -623,7 +618,6 @@ export default function AdminDashboard() {
     setColName(col.name);
     setColCode(col.code);
     setColPoints(col.points);
-    setColHasShifts(Boolean(col.hasShifts));
   };
 
   // System Settings State
@@ -1432,7 +1426,6 @@ export default function AdminDashboard() {
   const [colName, setColName] = useState("");
   const [colCode, setColCode] = useState("");
   const [colPoints, setColPoints] = useState(0);
-  const [colHasShifts, setColHasShifts] = useState(false);
   const [editingCollegeId, setEditingCollegeId] = useState<string | null>(null);
 
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
@@ -5716,18 +5709,6 @@ export default function AdminDashboard() {
                     />
                   </div>
 
-                  <div className="pt-0.5 pb-1">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={colHasShifts}
-                        onChange={(e) => setColHasShifts(e.target.checked)}
-                        className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
-                      />
-                      <span className="text-slate-700 font-mono text-[11px] font-bold">Dual Shifts (Shift I & Shift II)</span>
-                    </label>
-                  </div>
-
                   <button
                     type="submit"
                     className="w-full bg-blue-600 hover:bg-blue-700 shadow-lg shadow-purple-600/30 text-white font-bold py-2.5 rounded-xl transition-all shadow-xs cursor-pointer text-center text-xs uppercase font-mono tracking-wider"
@@ -5743,7 +5724,6 @@ export default function AdminDashboard() {
                         setColName("");
                         setColCode("");
                         setColPoints(0);
-                        setColHasShifts(false);
                       }}
                       className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 py-2 rounded-xl text-center cursor-pointer text-xs font-bold font-mono"
                     >
@@ -5768,11 +5748,6 @@ export default function AdminDashboard() {
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <strong className="text-slate-900 font-extrabold text-sm sm:text-base">{col.name}</strong>
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-blue-700 border border-purple-300 rounded-md">{col.code}</span>
-                          {col.hasShifts && (
-                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-purple-100 text-purple-800 border border-purple-200 rounded-md">
-                              Dual Shifts
-                            </span>
-                          )}
                         </div>
                         <span className="text-slate-600 font-mono text-xs">
                           Registered Students: <strong className="text-blue-600">{users.filter(u => u.role === "student" && u.college === col.name).length} Students</strong>
