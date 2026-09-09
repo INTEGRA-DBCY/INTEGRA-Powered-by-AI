@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Cpu, User, Mail, Phone, GraduationCap, Calendar, Check, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
+import { Cpu, User, Mail, Phone, GraduationCap, Calendar, Clock, Check, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
 import { mockDB, College } from "@/lib/mock-db";
 import { validateFullName, validateEmail, validateDepartment, validateCollege } from "@/lib/validation";
 
@@ -20,6 +20,7 @@ export default function RegisterPage() {
     gender: "",
     college: "",
     customCollege: "",
+    shift: "",
     department: "",
     year: "3rd Year",
     photoUrl: "",
@@ -104,6 +105,13 @@ export default function RegisterPage() {
       }
     }
 
+    // Shift validation for colleges with mandatory shifts
+    const selectedCollegeObj = colleges.find(c => c.name === formData.college);
+    if (selectedCollegeObj?.hasShifts && !formData.shift) {
+      setValidationError(`Please select your shift (Shift I or Shift II) for ${selectedCollegeObj.name}.`);
+      return;
+    }
+
     const deptVal = validateDepartment(formData.department);
     if (!deptVal.valid) {
       setValidationError(deptVal.error || "Invalid department name.");
@@ -127,6 +135,7 @@ export default function RegisterPage() {
         phone: formData.phone.trim(),
         gender: formData.gender,
         college: formData.college === "Other College" ? formData.customCollege.trim() : formData.college,
+        shift: formData.shift ? formData.shift.trim() : undefined,
         department: formData.department.trim(),
         year: formData.year,
         photoUrl: formData.photoUrl.trim()
@@ -147,6 +156,7 @@ export default function RegisterPage() {
           participantId: newStudent.participantId,
           registrationId: newStudent.registrationId,
           college: newStudent.college,
+          shift: newStudent.shift || formData.shift || "",
           department: newStudent.department,
           year: newStudent.year,
           gender: newStudent.gender,
@@ -162,6 +172,8 @@ export default function RegisterPage() {
       setIsSubmitting(false);
     }
   };
+
+  const selectedCollegeObj = colleges.find(c => c.name === formData.college);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 py-12 px-4 relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold">
@@ -260,6 +272,12 @@ export default function RegisterPage() {
                 <span className="text-slate-600">College</span>
                 <span className="text-blue-700 truncate max-w-[200px]">{registeredStudent.college}</span>
               </div>
+              {registeredStudent.shift && (
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="text-slate-600">Shift</span>
+                  <span className="text-purple-700 font-bold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">{registeredStudent.shift}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-slate-600">Payment Status</span>
                 <span className="text-orange-600 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded border border-amber-500/40">
@@ -410,22 +428,48 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div>
-              <label className="block text-slate-700 text-[10.5px] font-mono mb-1 uppercase tracking-widest font-bold">Academic Year *</label>
-              <div className="relative">
-                <Calendar className="absolute left-3.5 top-2.5 text-slate-600" size={16} />
-                <select
-                  name="year"
-                  value={formData.year}
-                  onChange={handleTextChange}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono cursor-pointer"
-                >
-                  <option value="1st Year">1st Year</option>
-                  <option value="2nd Year">2nd Year</option>
-                  <option value="3rd Year">3rd Year</option>
-                  <option value="Final Year">Final Year</option>
-                  <option value="Post Graduate (PG)">Post Graduate (PG)</option>
-                </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+              <div>
+                <label className="block text-slate-700 text-[10.5px] font-mono mb-1 uppercase tracking-widest font-bold">Academic Year *</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3.5 top-2.5 text-slate-600" size={16} />
+                  <select
+                    name="year"
+                    value={formData.year}
+                    onChange={handleTextChange}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono cursor-pointer"
+                  >
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="Final Year">Final Year</option>
+                    <option value="Post Graduate (PG)">Post Graduate (PG)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 text-[10.5px] font-mono mb-1 uppercase tracking-widest font-bold flex items-center justify-between">
+                  <span>Shift {selectedCollegeObj?.hasShifts ? <span className="text-purple-600">*</span> : <span className="text-slate-500 font-normal lowercase">(if applicable)</span>}</span>
+                  {selectedCollegeObj?.hasShifts && (
+                    <span className="text-[9.5px] text-purple-600 font-bold bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
+                      Dual Shift
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3.5 top-2.5 text-slate-600" size={16} />
+                  <select
+                    name="shift"
+                    value={formData.shift}
+                    onChange={handleTextChange}
+                    className={`w-full bg-slate-50 border ${selectedCollegeObj?.hasShifts && !formData.shift ? "border-purple-400 bg-purple-50/20" : "border-slate-300"} rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono cursor-pointer`}
+                  >
+                    <option value="">{selectedCollegeObj?.hasShifts ? "Select Shift *" : "Not Applicable / Regular"}</option>
+                    <option value="Shift I">Shift I (Day / Morning)</option>
+                    <option value="Shift II">Shift II (Evening / Self-Financed)</option>
+                  </select>
+                </div>
               </div>
             </div>
 

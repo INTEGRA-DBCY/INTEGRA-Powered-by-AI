@@ -107,6 +107,8 @@ export interface College {
   name: string;
   code: string;
   points: number;
+  hasShifts?: boolean;
+  shifts?: string[];
 }
 
 export type UserRole = "student" | "admin" | "judge" | "volunteer" | "coordinator" | "food_coordinator" | "stall_operator" | "super_admin";
@@ -122,6 +124,7 @@ export interface User {
   assignedStallId?: string;
   assignedStallName?: string;
   college?: string;
+  shift?: string; // e.g. "Shift I" | "Shift II" | "Regular"
   department?: string;
   year?: string;
   phone?: string;
@@ -791,11 +794,11 @@ export const DEFAULT_MISSIONS: Mission[] = [
 ];
 
 const DEFAULT_COLLEGES: College[] = [
-  { id: "vit", name: "Vellore Institute of Technology", code: "VIT", points: 0 },
-  { id: "srm", name: "SRM Institute of Science & Tech", code: "SRM", points: 0 },
-  { id: "loyo", name: "Loyola College, Chennai", code: "LOYOLA", points: 0 },
-  { id: "sac", name: "Sacred Heart College, Tirupattur", code: "SHC", points: 0 },
-  { id: "dbc", name: "Don Bosco College, Yelagiri Hills", code: "DBC", points: 0 }
+  { id: "vit", name: "Vellore Institute of Technology", code: "VIT", points: 0, hasShifts: false },
+  { id: "srm", name: "SRM Institute of Science & Tech", code: "SRM", points: 0, hasShifts: false },
+  { id: "loyo", name: "Loyola College, Chennai", code: "LOYOLA", points: 0, hasShifts: true, shifts: ["Shift I", "Shift II"] },
+  { id: "sac", name: "Sacred Heart College, Tirupattur", code: "SHC", points: 0, hasShifts: true, shifts: ["Shift I", "Shift II"] },
+  { id: "dbc", name: "Don Bosco College, Yelagiri Hills", code: "DBC", points: 0, hasShifts: true, shifts: ["Shift I", "Shift II"] }
 ];
 
 const DEFAULT_USERS: User[] = [
@@ -1362,6 +1365,7 @@ export const mockDB = {
     year: string;
     gender: string;
     photoUrl: string;
+    shift?: string;
   }): Promise<User> => {
     // 1. Pull latest cloud data directly from Firebase Cloud Firestore
     let cloudData = null;
@@ -1445,6 +1449,7 @@ export const mockDB = {
       id: `std-${Date.now()}-${nextSeq}`,
       symposiumId: activeSym.id,
       role: "student",
+      shift: data.shift ? data.shift.trim() : undefined,
       participantId,
       registrationId,
       username,
@@ -1482,6 +1487,7 @@ export const mockDB = {
     year: string;
     gender: string;
     photoUrl: string;
+    shift?: string;
   }): User => {
     const activeSym = mockDB.getActiveSymposium();
     
@@ -1517,6 +1523,7 @@ export const mockDB = {
       id: `std-${Date.now()}-${nextSeq}`,
       symposiumId: activeSym.id,
       role: "student",
+      shift: data.shift ? data.shift.trim() : undefined,
       participantId,
       registrationId,
       username,

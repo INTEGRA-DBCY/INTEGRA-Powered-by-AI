@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       participantId,
       registrationId,
       college,
+      shift,
       department,
       year,
       gender,
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
 
     const safeName = escapeHtml(name || "");
     const safeCollege = escapeHtml(college || "");
+    const safeShift = escapeHtml(shift || "");
     const safeDept = escapeHtml(department || "");
     const safeYear = escapeHtml(year || "");
     const safePhone = escapeHtml(phone || "");
@@ -149,6 +151,11 @@ export async function POST(req: NextRequest) {
         <span class="cred-label">🔑 Password:</span>
         <span class="cred-val pass">${safePassword}</span>
       </div>
+      ${safeShift ? `
+      <div class="cred-row">
+        <span class="cred-label">⏱️ Shift:</span>
+        <span class="cred-val" style="color:#c084fc;">${safeShift}</span>
+      </div>` : ""}
       <div class="cred-row">
         <span class="cred-label">🌐 Login:</span>
         <span class="cred-val" style="color:#38bdf8;"><a href="${loginUrl}" style="color:#38bdf8;text-decoration:underline;">${loginUrl}</a></span>
@@ -203,7 +210,7 @@ We’re excited to have you join us for an exciting journey of Technology • In
 🔐 YOUR LOGIN DETAILS
 
 👤 Username: ${loginUsername}
-🔑 Password: ${loginPassword}
+🔑 Password: ${loginPassword}${shift ? `\n⏱️ Shift: ${shift}` : ""}
 🌐 Login: ${loginUrl}
 
 🎯 Your Participant Portal gives you access to:

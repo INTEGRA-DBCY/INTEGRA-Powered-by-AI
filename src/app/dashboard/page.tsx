@@ -50,6 +50,7 @@ export default function StudentDashboard() {
     gender: "Male",
     college: "",
     customCollege: "",
+    shift: "",
     department: "",
     year: "3rd Year",
     photoUrl: ""
@@ -150,6 +151,7 @@ export default function StudentDashboard() {
       gender: user.gender || "Male",
       college: isStandardCollege ? (user.college || "") : (user.college ? "Other College" : ""),
       customCollege: isStandardCollege ? "" : (user.college || ""),
+      shift: user.shift || "",
       department: user.department || "",
       year: user.year || "3rd Year",
       photoUrl: (user.photoUrl as string) || ""
@@ -207,6 +209,7 @@ export default function StudentDashboard() {
         phone: editProfileForm.phone.trim().replace(/\D/g, "").slice(0, 10),
         gender: editProfileForm.gender,
         college: finalCollege,
+        shift: editProfileForm.shift ? editProfileForm.shift.trim() : undefined,
         department: editProfileForm.department.trim(),
         year: editProfileForm.year,
         photoUrl: editProfileForm.photoUrl
@@ -673,7 +676,9 @@ export default function StudentDashboard() {
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">COLLEGE INSTITUTION</span>
-                      <strong className="text-xs font-sans font-bold text-slate-900 truncate block">{user.college}</strong>
+                      <strong className="text-xs font-sans font-bold text-slate-900 truncate block">
+                        {user.college}{user.shift ? ` (${user.shift})` : ""}
+                      </strong>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">DEPARTMENT</span>
@@ -1543,20 +1548,35 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-slate-700 text-[10.5px] uppercase font-bold mb-1">Academic Year *</label>
-                <select
-                  value={editProfileForm.year}
-                  onChange={e => setEditProfileForm(prev => ({ ...prev, year: e.target.value }))}
-                  required
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 font-mono cursor-pointer"
-                >
-                  <option value="1st Year">1st Year</option>
-                  <option value="2nd Year">2nd Year</option>
-                  <option value="3rd Year">3rd Year</option>
-                  <option value="Final Year">Final Year</option>
-                  <option value="Post Graduate (PG)">Post Graduate (PG)</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 text-[10.5px] uppercase font-bold mb-1">Academic Year *</label>
+                  <select
+                    value={editProfileForm.year}
+                    onChange={e => setEditProfileForm(prev => ({ ...prev, year: e.target.value }))}
+                    required
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 font-mono cursor-pointer"
+                  >
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="Final Year">Final Year</option>
+                    <option value="Post Graduate (PG)">Post Graduate (PG)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 text-[10.5px] uppercase font-bold mb-1">Shift (If Applicable)</label>
+                  <select
+                    value={editProfileForm.shift || ""}
+                    onChange={e => setEditProfileForm(prev => ({ ...prev, shift: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 font-mono cursor-pointer"
+                  >
+                    <option value="">Not Applicable / Regular</option>
+                    <option value="Shift I">Shift I (Day / Morning)</option>
+                    <option value="Shift II">Shift II (Evening / Self-Financed)</option>
+                  </select>
+                </div>
               </div>
 
               {/* Photo Upload in Profile Editor */}

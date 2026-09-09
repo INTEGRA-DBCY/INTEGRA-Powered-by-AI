@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       name, email, participantId, registrationId,
-      college, department, year, phone, registeredEvents = []
+      college, shift, department, year, phone, registeredEvents = []
     } = body;
 
     // Defend against Email Flooding / DoS (OWASP A07)
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
     const safeName = escapeHtml(name || "");
     const safeCollege = escapeHtml(college || "");
+    const safeShift = escapeHtml(shift || "");
     const safeDept = escapeHtml(department || "");
     const safeYear = escapeHtml(year || "");
     const safePhone = escapeHtml(phone || "");
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
           <table style="width:100%;border-collapse:collapse;">
             ${[
               ["NAME", safeName, "#0f172a", "14px", "800"],
-              ["COLLEGE", safeCollege, "#1e293b", "12px", "700"],
+              ["COLLEGE", safeShift ? `${safeCollege} (${safeShift})` : safeCollege, "#1e293b", "12px", "700"],
               ["DEPARTMENT", safeDept, "#334155", "12px", "600"],
               ["YEAR", safeYear, "#334155", "12px", "600"],
               ["MOBILE", safePhone || "—", "#334155", "12px", "600"],
@@ -256,7 +257,7 @@ PARTICIPANT INFORMATION
 -----------------------
 PARTICIPANT ID : ${participantId || registrationId}
 NAME           : ${name}
-COLLEGE        : ${college}
+COLLEGE        : ${college}${shift ? ` (${shift})` : ""}
 DEPARTMENT     : ${department}
 YEAR           : ${year}
 MOBILE         : ${phone || "—"}

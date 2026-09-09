@@ -542,7 +542,9 @@ export default function AdminDashboard() {
         id: editingCollegeId,
         name: colName.trim(),
         code: colCode.trim().toUpperCase(),
-        points: 0
+        points: colPoints || 0,
+        hasShifts: colHasShifts,
+        shifts: colHasShifts ? ["Shift I", "Shift II"] : []
       });
       setEditingCollegeId(null);
       alert("College details updated successfully!");
@@ -558,7 +560,9 @@ export default function AdminDashboard() {
         id: colId,
         name: colName.trim(),
         code: colCode.trim().toUpperCase(),
-        points: 0
+        points: 0,
+        hasShifts: colHasShifts,
+        shifts: colHasShifts ? ["Shift I", "Shift II"] : []
       });
       alert("New college profile registered successfully!");
     }
@@ -566,6 +570,7 @@ export default function AdminDashboard() {
     setColName("");
     setColCode("");
     setColPoints(0);
+    setColHasShifts(false);
     fetchData();
   };
 
@@ -618,6 +623,7 @@ export default function AdminDashboard() {
     setColName(col.name);
     setColCode(col.code);
     setColPoints(col.points);
+    setColHasShifts(Boolean(col.hasShifts));
   };
 
   // System Settings State
@@ -1426,6 +1432,7 @@ export default function AdminDashboard() {
   const [colName, setColName] = useState("");
   const [colCode, setColCode] = useState("");
   const [colPoints, setColPoints] = useState(0);
+  const [colHasShifts, setColHasShifts] = useState(false);
   const [editingCollegeId, setEditingCollegeId] = useState<string | null>(null);
 
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
@@ -1881,12 +1888,12 @@ export default function AdminDashboard() {
 
   const handleExportCSV = (isExcel: boolean = false) => {
     const students = users.filter(u => u.role === "student");
-    const headers = "ParticipantID,RegistrationNo,Name,Email,Mobile,Gender,College,Department,Year,RegisteredMissions,PaymentStatus,Points";
+    const headers = "ParticipantID,RegistrationNo,Name,Email,Mobile,Gender,College,Shift,Department,Year,RegisteredMissions,PaymentStatus,Points";
     const rows = students.map(s => {
       const pId = s.participantId || s.id;
       const regId = s.registrationId || "";
       const missionsStr = (s.registeredEvents || []).join("; ");
-      return `"${pId}","${regId}","${(s.name||"").replace(/"/g, '""')}","${(s.email||"").replace(/"/g, '""')}","${s.phone || ""}","${s.gender || ""}","${(s.college||"").replace(/"/g, '""')}","${(s.department||"").replace(/"/g, '""')}","${s.year || ""}","${missionsStr.replace(/"/g, '""')}","${s.paymentStatus}",${s.xp || 0}`;
+      return `"${pId}","${regId}","${(s.name||"").replace(/"/g, '""')}","${(s.email||"").replace(/"/g, '""')}","${s.phone || ""}","${s.gender || ""}","${(s.college||"").replace(/"/g, '""')}","${(s.shift||"").replace(/"/g, '""')}","${(s.department||"").replace(/"/g, '""')}","${s.year || ""}","${missionsStr.replace(/"/g, '""')}","${s.paymentStatus}",${s.xp || 0}`;
     }).join("\n");
 
     downloadExportFile("integra_2026_attendee_roster", headers, rows, isExcel);
@@ -2170,6 +2177,7 @@ export default function AdminDashboard() {
       (s.email && s.email.toLowerCase().includes(q)) ||
       (s.phone && s.phone.includes(q)) ||
       (s.college && s.college.toLowerCase().includes(q)) ||
+      (s.shift && s.shift.toLowerCase().includes(q)) ||
       (s.department && s.department.toLowerCase().includes(q))
     );
     return matchesStatus && matchesCollege && matchesQuery;
@@ -2195,6 +2203,7 @@ export default function AdminDashboard() {
       (s.email && s.email.toLowerCase().includes(q)) ||
       (s.phone && s.phone.includes(q)) ||
       (s.college && s.college.toLowerCase().includes(q)) ||
+      (s.shift && s.shift.toLowerCase().includes(q)) ||
       (s.department && s.department.toLowerCase().includes(q))
     );
     return matchesStatus && matchesCollege && matchesEvent && matchesQuery;
@@ -3857,10 +3866,15 @@ export default function AdminDashboard() {
                               ✓ CHECKED IN
                             </span>
                           )}
+                          {student.shift && (
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                              {student.shift}
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-slate-600 text-[11px] font-medium">
-                          {student.college} • {student.department} ({student.year})
+                          {student.college}{student.shift ? ` (${student.shift})` : ""} • {student.department} ({student.year})
                         </p>
 
                         <div className="flex items-center gap-3 text-[10px] font-mono text-slate-700 font-semibold pt-0.5 flex-wrap">
@@ -5702,6 +5716,18 @@ export default function AdminDashboard() {
                     />
                   </div>
 
+                  <div className="pt-0.5 pb-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={colHasShifts}
+                        onChange={(e) => setColHasShifts(e.target.checked)}
+                        className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <span className="text-slate-700 font-mono text-[11px] font-bold">Dual Shifts (Shift I & Shift II)</span>
+                    </label>
+                  </div>
+
                   <button
                     type="submit"
                     className="w-full bg-blue-600 hover:bg-blue-700 shadow-lg shadow-purple-600/30 text-white font-bold py-2.5 rounded-xl transition-all shadow-xs cursor-pointer text-center text-xs uppercase font-mono tracking-wider"
@@ -5717,6 +5743,7 @@ export default function AdminDashboard() {
                         setColName("");
                         setColCode("");
                         setColPoints(0);
+                        setColHasShifts(false);
                       }}
                       className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 py-2 rounded-xl text-center cursor-pointer text-xs font-bold font-mono"
                     >
@@ -5738,9 +5765,14 @@ export default function AdminDashboard() {
                   {colleges.map((col) => (
                     <div key={col.id} className="p-4 bg-slate-50/70 border border-slate-200 hover:border-purple-300 rounded-xl flex justify-between items-center text-xs transition-all shadow-xs">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <strong className="text-slate-900 font-extrabold text-sm sm:text-base">{col.name}</strong>
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-blue-700 border border-purple-300 rounded-md">{col.code}</span>
+                          {col.hasShifts && (
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-purple-100 text-purple-800 border border-purple-200 rounded-md">
+                              Dual Shifts
+                            </span>
+                          )}
                         </div>
                         <span className="text-slate-600 font-mono text-xs">
                           Registered Students: <strong className="text-blue-600">{users.filter(u => u.role === "student" && u.college === col.name).length} Students</strong>

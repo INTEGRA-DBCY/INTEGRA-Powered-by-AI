@@ -283,7 +283,9 @@ export default function PassportPage() {
 
               <div className="bg-white border border-slate-200 shadow-sm/70 p-1.5 rounded-lg border border-blue-900/40">
                 <span className="text-[8.5px] text-slate-700 font-semibold block">COLLEGE:</span>
-                <span className="font-semibold text-slate-900 font-bold truncate block text-[11px]">{activeStudent.college || "Don Bosco College"}</span>
+                <span className="font-semibold text-slate-900 font-bold truncate block text-[11px]">
+                  {activeStudent.college || "Don Bosco College"}{activeStudent.shift ? ` • ${activeStudent.shift}` : ""}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-1.5">

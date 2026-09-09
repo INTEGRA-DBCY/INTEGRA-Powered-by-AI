@@ -33,6 +33,7 @@ const ALLOWED_USER_FIELDS = new Set([
   "email",
   "phone",
   "college",
+  "shift",
   "department",
   "year",
   "gender",
