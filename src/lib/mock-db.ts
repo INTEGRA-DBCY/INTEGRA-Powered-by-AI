@@ -755,7 +755,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
     id: "event-integra-vibe",
     symposiumId: "integra-2026",
     name: "INTEGRA Vibe",
-    category: "Non-Technical",
+    category: "Cultural",
     type: "Team",
     minTeamSize: 1,
     maxTeamSize: 7,
@@ -1751,6 +1751,40 @@ export const mockDB = {
     return { hasClash: false };
   },
 
+  // Enforces 1 Technical, 1 Non-Technical, 1 Cultural event limit per participant
+  checkCategoryLimit: (studentId: string, targetMissionId: string): { allowed: boolean; reason?: string; registeredInCategory?: string } => {
+    const user = memoryStore.users.find(u => u.id === studentId || u.participantId === studentId);
+    if (!user) return { allowed: true };
+
+    const enrolledIds = user.registeredEvents || [];
+    if (enrolledIds.includes(targetMissionId)) {
+      return { allowed: true }; // Already registered for this specific event
+    }
+
+    const allMissions = mockDB.getMissions(user.symposiumId);
+    const targetMission = allMissions.find(m => m.id === targetMissionId);
+    if (!targetMission) return { allowed: true };
+
+    const targetCategory = (targetMission.category || "").trim().toLowerCase();
+    
+    // Check if participant already has an event in the same category
+    for (const enrolledId of enrolledIds) {
+      const enrolledMission = allMissions.find(m => m.id === enrolledId);
+      if (enrolledMission) {
+        const cat = (enrolledMission.category || "").trim().toLowerCase();
+        if (cat === targetCategory) {
+          return {
+            allowed: false,
+            registeredInCategory: enrolledMission.name,
+            reason: `Category Limit: You have already registered for a ${targetMission.category} event ('${enrolledMission.name}'). Each participant can register for at most 1 Technical, 1 Non-Technical, and 1 Cultural event.`
+          };
+        }
+      }
+    }
+
+    return { allowed: true };
+  },
+
   registerForEvent: async (studentId: string, missionId: string): Promise<User> => {
     const user = memoryStore.users.find(u => u.id === studentId || u.participantId === studentId);
     if (!user) throw new Error("Student not found.");
@@ -1768,6 +1802,12 @@ export const mockDB = {
     const maxEvents = activeSym.maxEventsPerParticipant || 3;
     if (enrolled.length >= maxEvents) {
       throw new Error(`Maximum limit of ${maxEvents} events per participant reached.`);
+    }
+
+    // Strict Category Limit: 1 Technical, 1 Non-Technical, 1 Cultural
+    const categoryCheck = mockDB.checkCategoryLimit(studentId, missionId);
+    if (!categoryCheck.allowed) {
+      throw new Error(categoryCheck.reason || `Category limit reached: only 1 ${mission.category} event permitted.`);
     }
 
     const clashCheck = mockDB.checkEventSlotClash(studentId, missionId);
@@ -1827,6 +1867,18 @@ export const mockDB = {
 
     const leaderCollege = leaderUser?.college || (typeof teamDataOrMissionId === "object" ? (teamDataOrMissionId.college || teamDataOrMissionId.leaderCollege) : "") || "";
     const leaderDept = leaderUser?.department || (typeof teamDataOrMissionId === "object" ? (teamDataOrMissionId.department || teamDataOrMissionId.leaderDept) : "") || "";
+
+    // Enforce Category Limit: 1 Technical, 1 Non-Technical, 1 Cultural
+    if (leaderUser) {
+      const catCheck = mockDB.checkCategoryLimit(leaderUser.id, targetMissionId);
+      if (!catCheck.allowed) {
+        throw new Error(catCheck.reason || "Category limit reached for team creation.");
+      }
+      const clashCheck = mockDB.checkEventSlotClash(leaderUser.id, targetMissionId);
+      if (clashCheck.hasClash) {
+        throw new Error(`Time Clash: The event is scheduled in ${clashCheck.clashingSlot}, which overlaps with your registered event '${clashCheck.clashingMissionName}'.`);
+      }
+    }
 
     // Enforce STRICT rule 1: 1 Team per participant per event
     const existingUserTeam = memoryStore.teams.find(t => {
@@ -1899,6 +1951,16 @@ export const mockDB = {
     memoryStore.teams.push(newTeam);
     mockDB.logActivity(newTeam.leaderId, newTeam.leaderName, "TEAM_CREATED", `Created team '${newTeam.teamName}' for event ${newTeam.eventName}`);
     firebaseService.saveTeam(newTeam);
+
+    // Auto-enroll Team Leader into event registeredEvents if not already enrolled
+    if (leaderUser && targetMissionId) {
+      const leaderEnrolled = leaderUser.registeredEvents || [];
+      if (!leaderEnrolled.includes(targetMissionId)) {
+        leaderUser.registeredEvents = [...leaderEnrolled, targetMissionId];
+        mockDB.updateUser(leaderUser);
+      }
+    }
+
     return newTeam;
   },
 
@@ -1979,12 +2041,24 @@ export const mockDB = {
       throw new Error(`Team restriction: All team members must belong to the same department (${teamDept}).`);
     }
 
+    const targetMissionId = team.missionId || team.eventId || missionId;
+
+    // Enforce Category Limit & Slot Clash for joining student
+    const catCheck = mockDB.checkCategoryLimit(student.id, targetMissionId);
+    if (!catCheck.allowed) {
+      throw new Error(catCheck.reason || "Category limit reached for this event type.");
+    }
+    const clashCheck = mockDB.checkEventSlotClash(student.id, targetMissionId);
+    if (clashCheck.hasClash) {
+      throw new Error(`Time Clash: The event is scheduled in ${clashCheck.clashingSlot}, which overlaps with your registered event '${clashCheck.clashingMissionName}'.`);
+    }
+
     const teamDisplayName = team.teamName || team.name || "Team";
     const newRequest = {
       id: `req-${Date.now()}`,
       teamId: team.id,
       teamName: teamDisplayName,
-      missionId: team.missionId || team.eventId || missionId,
+      missionId: targetMissionId,
       studentId: student.id,
       studentName: student.name,
       status: "pending",
@@ -2014,6 +2088,17 @@ export const mockDB = {
           joinedAt: new Date().toISOString()
         });
         firebaseService.saveTeam(team);
+
+        // Auto-enroll accepted member into registeredEvents
+        const studentUser = memoryStore.users.find(u => u.id === req.studentId || u.participantId === req.studentId);
+        const tEventId = team.missionId || team.eventId;
+        if (studentUser && tEventId) {
+          const userEnrolled = studentUser.registeredEvents || [];
+          if (!userEnrolled.includes(tEventId)) {
+            studentUser.registeredEvents = [...userEnrolled, tEventId];
+            mockDB.updateUser(studentUser);
+          }
+        }
       }
     }
     firebaseService.saveJoinRequest(req);

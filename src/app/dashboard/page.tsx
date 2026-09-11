@@ -41,6 +41,7 @@ export default function StudentDashboard() {
 
   // Event & Team Registration Modal State
   const [eventSearch, setEventSearch] = useState("");
+  const [eventCategoryFilter, setEventCategoryFilter] = useState<string>("All");
   const [createTeamModalEvent, setCreateTeamModalEvent] = useState<Mission | null>(null);
   const [createdTeamSuccess, setCreatedTeamSuccess] = useState<any>(null);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -407,7 +408,26 @@ export default function StudentDashboard() {
 
   const maxEvents = symposium?.maxEventsPerParticipant || 3;
   const userMissions = missions.filter(m => user.registeredEvents?.includes(m.id));
-  const filteredEvents = missions.filter(m => m.name.toLowerCase().includes(eventSearch.toLowerCase()) || m.category.toLowerCase().includes(eventSearch.toLowerCase()));
+  
+  // Category Breakdown Counts (1 Technical, 1 Non-Technical, 1 Cultural)
+  const registeredTechMission = userMissions.find(m => (m.category || "").toLowerCase() === "technical");
+  const registeredNonTechMission = userMissions.find(m => (m.category || "").toLowerCase() === "non-technical");
+  const registeredCulturalMission = userMissions.find(m => (m.category || "").toLowerCase() === "cultural");
+
+  const techCount = registeredTechMission ? 1 : 0;
+  const nonTechCount = registeredNonTechMission ? 1 : 0;
+  const culturalCount = registeredCulturalMission ? 1 : 0;
+
+  const filteredEvents = missions.filter(m => {
+    const matchesSearch = m.name.toLowerCase().includes(eventSearch.toLowerCase()) || 
+      (m.category || "").toLowerCase().includes(eventSearch.toLowerCase()) ||
+      (m.venue || "").toLowerCase().includes(eventSearch.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    if (eventCategoryFilter === "All") return true;
+    return (m.category || "").toLowerCase() === eventCategoryFilter.toLowerCase();
+  });
   const myTeams = teams.filter(t => t.leaderId === (user.participantId || user.id) || (t.members && t.members.some((m: any) => (typeof m === "string" ? m : m.studentId) === (user.participantId || user.id))));
 
   return (
@@ -655,7 +675,7 @@ export default function StudentDashboard() {
           )}
 
           {actionError && (
-            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 border border-red-500/50 text-red-200 text-xs text-center font-mono font-bold animate-in fade-in duration-200">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border-2 border-red-300 text-red-950 text-xs text-center font-mono font-black shadow-md animate-in fade-in duration-200">
               ⚠️ {actionError}
             </div>
           )}
@@ -905,28 +925,159 @@ export default function StudentDashboard() {
             </div>
           )}
 
-          {/* TAB 2: Event Registration & Slot Clash Engine */}{/* TAB 2: Event Registration & Slot Clash Engine */}
+          {/* TAB 2: Event Registration & Slot Clash Engine */}
           {activeTab === "event_registration" && (
             <div className="space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-heading font-black text-slate-900">Event Registration Portal</h3>
-                    <span className="text-[10px] font-mono font-bold bg-blue-50 border border-blue-200 text-blue-900 font-bold px-2.5 py-0.5 rounded-full border border-sky-500/40">
-                      {userMissions.length} / {maxEvents} Selected
-                    </span>
+              {/* Category Quota Tracker Banner: 1 Technical, 1 Non-Technical, 1 Cultural */}
+              <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-2xl border border-purple-500/40">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-purple-500/30 pb-4 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-xl">🎯</span>
+                      <h3 className="text-lg font-heading font-black tracking-wide text-white">Event Registration Track</h3>
+                      <span className="text-xs font-mono font-black bg-purple-400/20 text-purple-200 border border-purple-400/40 px-3 py-0.5 rounded-full">
+                        {userMissions.length} / 3 Maximum Events
+                      </span>
+                    </div>
+                    <p className="text-xs text-purple-200/80 font-sans mt-1">
+                      Symposium Policy: Each participant can register for at most <strong className="text-white">1 Technical</strong>, <strong className="text-white">1 Non-Technical</strong>, and <strong className="text-white">1 Cultural</strong> event.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-600 font-sans">Select up to {maxEvents} symposium events. System enforces strict slot clash prevention.</p>
+                  <div className="text-[11px] font-mono font-bold bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 shrink-0">
+                    Rule 3-Track Allocation
+                  </div>
                 </div>
 
+                {/* 3 Category Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 font-mono">
+                  {/* Track 1: Technical */}
+                  <div className={`p-4 rounded-2xl border-2 transition-all ${
+                    techCount > 0 
+                      ? "bg-emerald-950/60 border-emerald-400/80 text-emerald-100 shadow-lg shadow-emerald-950/40" 
+                      : "bg-white/5 border-purple-300/30 text-slate-200 hover:border-purple-400/50"
+                  }`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💻</span>
+                        <span className="font-extrabold text-xs uppercase tracking-wider">Technical</span>
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        techCount > 0 ? "bg-emerald-400 text-emerald-950" : "bg-white/20 text-white"
+                      }`}>
+                        {techCount} / 1
+                      </span>
+                    </div>
+                    <div className="mt-2.5 text-[11px] truncate">
+                      {registeredTechMission ? (
+                        <span className="font-bold text-emerald-300 flex items-center gap-1">
+                          <span>✓</span>
+                          <span className="truncate">{registeredTechMission.name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-purple-200/60 italic">0 of 1 Selected</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Track 2: Non-Technical */}
+                  <div className={`p-4 rounded-2xl border-2 transition-all ${
+                    nonTechCount > 0 
+                      ? "bg-emerald-950/60 border-emerald-400/80 text-emerald-100 shadow-lg shadow-emerald-950/40" 
+                      : "bg-white/5 border-purple-300/30 text-slate-200 hover:border-purple-400/50"
+                  }`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🎨</span>
+                        <span className="font-extrabold text-xs uppercase tracking-wider">Non-Technical</span>
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        nonTechCount > 0 ? "bg-emerald-400 text-emerald-950" : "bg-white/20 text-white"
+                      }`}>
+                        {nonTechCount} / 1
+                      </span>
+                    </div>
+                    <div className="mt-2.5 text-[11px] truncate">
+                      {registeredNonTechMission ? (
+                        <span className="font-bold text-emerald-300 flex items-center gap-1">
+                          <span>✓</span>
+                          <span className="truncate">{registeredNonTechMission.name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-purple-200/60 italic">0 of 1 Selected</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Track 3: Cultural */}
+                  <div className={`p-4 rounded-2xl border-2 transition-all ${
+                    culturalCount > 0 
+                      ? "bg-emerald-950/60 border-emerald-400/80 text-emerald-100 shadow-lg shadow-emerald-950/40" 
+                      : "bg-white/5 border-purple-300/30 text-slate-200 hover:border-purple-400/50"
+                  }`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💃</span>
+                        <span className="font-extrabold text-xs uppercase tracking-wider">Cultural</span>
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        culturalCount > 0 ? "bg-emerald-400 text-emerald-950" : "bg-white/20 text-white"
+                      }`}>
+                        {culturalCount} / 1
+                      </span>
+                    </div>
+                    <div className="mt-2.5 text-[11px] truncate">
+                      {registeredCulturalMission ? (
+                        <span className="font-bold text-emerald-300 flex items-center gap-1">
+                          <span>✓</span>
+                          <span className="truncate">{registeredCulturalMission.name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-purple-200/60 italic">0 of 1 Selected</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Row: Category Pills & Search */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-1">
+                {/* Category Filter Tabs */}
+                <div className="flex flex-wrap gap-2 font-mono text-xs">
+                  {[
+                    { id: "All", label: "All Events", badge: `${missions.length}` },
+                    { id: "Technical", label: "💻 Technical", badge: `${techCount}/1` },
+                    { id: "Non-Technical", label: "🎨 Non-Technical", badge: `${nonTechCount}/1` },
+                    { id: "Cultural", label: "💃 Cultural", badge: `${culturalCount}/1` }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setEventCategoryFilter(tab.id)}
+                      className={`px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-xs ${
+                        eventCategoryFilter === tab.id
+                          ? "bg-purple-700 text-white border-purple-500 shadow-purple-500/20"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        eventCategoryFilter === tab.id ? "bg-purple-900 text-white" : "bg-slate-100 text-slate-600 border border-slate-200"
+                      }`}>
+                        {tab.badge}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search Bar */}
                 <div className="relative w-full md:w-64 font-mono">
-                  <Search className="absolute left-3 top-2.5 text-slate-700 font-semibold" size={14} />
+                  <Search className="absolute left-3 top-2.5 text-slate-600" size={14} />
                   <input
                     type="text"
                     value={eventSearch}
                     onChange={(e) => setEventSearch(e.target.value)}
                     placeholder="Search events..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder:text-slate-700 font-semibold text-slate-900 font-bold"
+                    className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder:text-slate-500 shadow-xs"
                   />
                 </div>
               </div>
@@ -940,24 +1091,43 @@ export default function StudentDashboard() {
                   const availableSeats = Math.max(0, event.maxCapacity - registeredCount);
                   const isClosed = event.status === "Closed" || availableSeats === 0;
 
-                  // Check slot clash for unselected events
+                  // Category limit check
+                  const catCheck = !isRegistered ? mockDB.checkCategoryLimit(user.id, event.id) : { allowed: true };
+
+                  // Slot clash check for unselected events
                   const clashInfo = !isRegistered ? mockDB.checkEventSlotClash(user.id, event.id) : { hasClash: false };
+
+                  const isCultural = (event.category || "").toLowerCase() === "cultural";
+                  const isTech = (event.category || "").toLowerCase() === "technical";
 
                   return (
                     <div key={event.id} className="bg-white border border-purple-200 rounded-3xl p-5 flex flex-col justify-between space-y-3 shadow-xl hover:border-purple-500/50 transition-all">
                       <div>
                         <div className="flex justify-between items-start mb-2">
-                          <div className="flex gap-1.5">
-                            <span className={`text-[9px] uppercase font-mono px-2 py-0.5 rounded-md font-bold ${isTeamEvent ? "bg-indigo-50 border border-indigo-200 text-blue-700 border border-purple-500/40" : "bg-blue-50 border border-blue-200 text-blue-900 font-bold border border-sky-500/40"}`}>
-                              {isTeamEvent ? `TEAM (${event.minTeamSize}-${event.maxTeamSize} Members)` : "INDIVIDUAL"}
+                          <div className="flex flex-wrap gap-1.5">
+                            {/* Category Badge */}
+                            <span className={`text-[9px] uppercase font-mono px-2 py-0.5 rounded-md font-bold ${
+                              isCultural
+                                ? "bg-purple-100 border border-purple-300 text-purple-950 font-black"
+                                : isTech
+                                ? "bg-blue-100 border border-blue-300 text-blue-950 font-black"
+                                : "bg-amber-100 border border-amber-300 text-amber-950 font-black"
+                            }`}>
+                              {event.category || "Event"}
                             </span>
+
+                            <span className={`text-[9px] uppercase font-mono px-2 py-0.5 rounded-md font-bold ${isTeamEvent ? "bg-indigo-50 border border-indigo-200 text-blue-700" : "bg-blue-50 border border-blue-200 text-blue-900"}`}>
+                              {isTeamEvent ? `TEAM (${event.minTeamSize}-${event.maxTeamSize})` : "INDIVIDUAL"}
+                            </span>
+
                             {event.slot && (
-                              <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded-md font-bold bg-amber-50 border border-amber-200 text-orange-600 border border-amber-500/40">
+                              <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded-md font-bold bg-slate-100 border border-slate-300 text-slate-700">
                                 {event.slot}
                               </span>
                             )}
                           </div>
-                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${isClosed ? "bg-rose-50 border border-rose-200 text-rose-900 font-bold border border-red-500/40" : "bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold border border-emerald-500/40"}`}>
+
+                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${isClosed ? "bg-rose-50 border border-rose-200 text-rose-900" : "bg-emerald-50 border border-emerald-200 text-emerald-900"}`}>
                             {isClosed ? "CLOSED" : "OPEN"}
                           </span>
                         </div>
@@ -970,8 +1140,15 @@ export default function StudentDashboard() {
                           <div>Max Teams: <span className="text-blue-900 font-extrabold">{event.maxTeams || 50}</span></div>
                         </div>
 
-                        {clashInfo.hasClash && (
-                          <div className="mt-2 p-2 bg-rose-50 border border-rose-200 border border-red-500/40 rounded-xl text-[10px] font-mono text-rose-900 font-bold">
+                        {/* Warnings: Category Limit or Slot Clash */}
+                        {!isRegistered && !catCheck.allowed && (
+                          <div className="mt-2.5 p-2 bg-amber-50 border border-amber-300 rounded-xl text-[10.5px] font-mono text-amber-950 font-bold leading-tight">
+                            🔒 {catCheck.reason}
+                          </div>
+                        )}
+
+                        {!isRegistered && catCheck.allowed && clashInfo.hasClash && (
+                          <div className="mt-2.5 p-2 bg-rose-50 border border-rose-300 rounded-xl text-[10.5px] font-mono text-rose-950 font-bold leading-tight">
                             ⚠️ {clashInfo.message}
                           </div>
                         )}
@@ -980,13 +1157,13 @@ export default function StudentDashboard() {
                       {/* Action buttons */}
                       <div className="pt-2 font-mono">
                         {isRegistered ? (
-                          <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 border border-emerald-500/50 p-2.5 rounded-xl text-emerald-900 font-bold font-mono text-[10px] font-bold">
-                            <span>✓ REGISTERED ({event.slot || "Confirmed"})</span>
+                          <div className="flex items-center justify-between bg-emerald-50 border border-emerald-300 p-2.5 rounded-xl text-emerald-950 font-mono text-[10px] font-black">
+                            <span>✓ REGISTERED ({event.category})</span>
                             <button
                               onClick={() => handleUnregisterEvent(event.id)}
-                              className="text-rose-900 font-extrabold hover:text-rose-900 font-bold text-[9px] underline font-bold cursor-pointer"
+                              className="text-rose-900 hover:text-rose-700 text-[10px] underline font-black cursor-pointer ml-2"
                             >
-                              Drop
+                              Drop Event
                             </button>
                           </div>
                         ) : user.paymentStatus !== "Verified" ? (
@@ -997,8 +1174,12 @@ export default function StudentDashboard() {
                           <div className="w-full bg-slate-100 border border-slate-200 text-rose-900 font-extrabold font-mono text-[10px] py-2 rounded-xl text-center font-bold">
                             SEATS FULL / CLOSED
                           </div>
+                        ) : !catCheck.allowed ? (
+                          <div className="w-full bg-amber-100 border border-amber-300 text-amber-950 font-mono text-[10.5px] py-2.5 rounded-xl text-center font-black">
+                            1/1 {event.category.toUpperCase()} REGISTERED
+                          </div>
                         ) : clashInfo.hasClash ? (
-                          <div className="w-full bg-rose-50 border border-rose-200 border border-red-500/40 text-rose-900 font-bold font-mono text-[10px] py-2 rounded-xl text-center font-bold">
+                          <div className="w-full bg-rose-50 border border-rose-300 text-rose-950 font-mono text-[10px] py-2 rounded-xl text-center font-bold">
                             TIME CLASH – CANNOT SELECT
                           </div>
                         ) : isTeamEvent ? (
@@ -1375,8 +1556,9 @@ export default function StudentDashboard() {
             </h3>
             <p className="text-xs text-slate-700 font-sans">As Team Leader, enter your team name. Your Participant ID ({user.participantId || user.id}) will be assigned as Leader ID.</p>
 
-            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-[11px] text-amber-900 font-mono font-bold leading-relaxed">
-              ⚠️ <strong>Strict Rule:</strong> Only 1 team from 1 department of 1 college is allowed to register per event. All team members must belong to {user.department || "your department"} of {user.college || "your college"}.
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-[11px] text-amber-900 font-mono font-bold leading-relaxed space-y-1">
+              <div>⚠️ <strong>Strict Category Policy:</strong> You can register for at most 1 Technical, 1 Non-Technical, and 1 Cultural event. Creating a team reserves your spot for this {createTeamModalEvent.category} event.</div>
+              <div>⚠️ <strong>Department Rule:</strong> Only 1 team from 1 department of 1 college is allowed to register per event. All team members must belong to {user.department || "your department"} of {user.college || "your college"}.</div>
             </div>
 
             <form onSubmit={handleCreateTeamSubmit} className="space-y-4 text-xs">
@@ -1464,6 +1646,10 @@ export default function StudentDashboard() {
               Join Team for {joinTeamModalEvent.name}
             </h3>
             <p className="text-xs text-slate-700 font-sans">Enter the Team ID or Team Leader&apos;s Participant ID to send a join request.</p>
+
+            <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-950 font-mono font-bold">
+              ℹ️ <strong>Category Track:</strong> Joining this team will count as your 1 {joinTeamModalEvent.category} event registration.
+            </div>
 
             <form onSubmit={handleJoinTeamSubmit} className="space-y-4 text-xs">
               <div>
