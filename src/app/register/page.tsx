@@ -224,23 +224,30 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <h2 className="text-xl font-heading font-bold text-white mb-1">REGISTRATION SUCCESSFUL!</h2>
+              <h2 className="text-xl sm:text-2xl font-heading font-black text-slate-900 mb-1">REGISTRATION SUCCESSFUL!</h2>
               <p className="text-xs text-slate-600 font-medium">Welcome to INTEGRA! Your symposium account & credentials are ready.</p>
             </div>
 
-            {/* Login Credentials Highlight Box */}
-            <div className="bg-gradient-to-r from-purple-950/80 to-indigo-950/80 border-2 border-purple-500/60 rounded-2xl p-4 text-left space-y-2.5 shadow-lg shadow-purple-950/50">
-              <div className="text-[11px] font-mono font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-purple-300 pb-2">
-                <span>🔐</span>
-                <span>Your Login Credentials</span>
+            {/* Login Credentials Highlight Box - High Contrast & Fully Visible */}
+            <div className="bg-slate-900 border-2 border-purple-500 rounded-2xl p-4 sm:p-5 text-left space-y-3 shadow-2xl shadow-purple-950/40">
+              <div className="text-xs font-mono font-black text-amber-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-700/80 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔐</span>
+                  <span className="text-white font-bold">YOUR LOGIN CREDENTIALS</span>
+                </div>
+                <span className="text-[10px] bg-purple-900/80 text-purple-200 border border-purple-400/40 px-2 py-0.5 rounded-full font-mono font-semibold">
+                  SAVE THESE
+                </span>
               </div>
-              <div className="flex justify-between items-center text-xs font-mono">
-                <span className="text-slate-600">Login Username / Email</span>
-                <span className="text-blue-900 font-bold">{registeredStudent.email}</span>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 text-xs font-mono">
+                <span className="text-slate-300 font-medium">Login Username / Email</span>
+                <span className="text-emerald-300 font-bold bg-slate-800 px-3 py-1 rounded-lg border border-slate-700 select-all break-all">
+                  {registeredStudent.email}
+                </span>
               </div>
-              <div className="flex justify-between items-center text-xs font-mono">
-                <span className="text-slate-600">Access Passcode (Password)</span>
-                <span className="text-blue-700 font-bold bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded border border-purple-500/40 text-sm">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 text-xs font-mono">
+                <span className="text-slate-300 font-medium">Access Passcode (Password)</span>
+                <span className="text-amber-300 font-black bg-purple-950 border border-purple-400 px-3 py-1 rounded-lg text-sm tracking-wider select-all shadow-inner">
                   {registeredStudent.password}
                 </span>
               </div>
@@ -281,13 +288,13 @@ export default function RegisterPage() {
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 border border-emerald-500/30 rounded-xl text-left text-xs text-slate-700 leading-relaxed font-sans flex items-start gap-2.5">
               <span className="text-base">📧</span>
               <div>
-                <strong className="text-emerald-800 font-extrabold">Email Dispatched:</strong> A welcome confirmation email with your <strong>Username</strong>, <strong>Password</strong>, and <strong>Participant ID</strong> has been sent to <span className="font-mono text-white">{registeredStudent.email}</span>.
+                <strong className="text-emerald-800 font-extrabold">Email Dispatched:</strong> A welcome confirmation email with your <strong>Username</strong>, <strong>Password</strong>, and <strong>Participant ID</strong> has been sent to <span className="font-mono font-bold text-emerald-950 bg-emerald-100/90 px-2 py-0.5 rounded border border-emerald-300">{registeredStudent.email}</span>.
               </div>
             </div>
 
             <button
               onClick={() => router.push("/login")}
-              className="w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-slate-900 font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] uppercase tracking-wider text-xs cursor-pointer shadow-lg shadow-purple-600/30 font-mono"
+              className="w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-white font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] uppercase tracking-wider text-xs cursor-pointer shadow-lg shadow-purple-600/30 font-mono"
             >
               <span>Go to Login Console</span>
               <ArrowRight size={16} />

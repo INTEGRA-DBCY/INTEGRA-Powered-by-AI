@@ -413,8 +413,8 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold overflow-x-hidden max-w-full w-full">
       {/* Top Header - Fully Responsive */}
-      <header className="sticky top-0 z-40 bg-white backdrop-blur-md border-b border-purple-200 px-4 sm:px-6 py-3 shadow-xl">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <header className="sticky top-0 z-40 bg-white backdrop-blur-md border-b border-purple-200 px-4 sm:px-6 lg:px-8 py-3 shadow-xl">
+        <div className="w-full max-w-[1680px] mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2 cursor-pointer group">
               <div className="p-1.5 rounded-xl bg-white border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.35)] flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
@@ -457,15 +457,15 @@ export default function StudentDashboard() {
       </header>
 
       {/* Main body split layout */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 flex flex-col md:flex-row gap-5 sm:gap-6">
+      <main className="flex-1 w-full max-w-[1680px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col md:flex-row gap-5 sm:gap-6 lg:gap-8">
         
         {/* Sidebar Nav */}
-        <aside className="w-full md:w-64 lg:w-72 shrink-0 space-y-4">
+        <aside className="w-full md:w-72 lg:w-80 shrink-0 space-y-4">
           <div className="p-4 sm:p-5 rounded-2xl bg-white border border-purple-200 flex flex-col items-center text-center shadow-xl">
             <div className="relative group w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-purple-500/60 mb-2.5 sm:mb-3 bg-slate-100 shadow-md shrink-0">
               <img 
                 src={user.photoUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop"} 
-                alt={user.name}
+                alt={user.name} 
                 className="w-full h-full object-cover" 
               />
               <label className="absolute inset-0 bg-black/70 text-white text-[9px] font-bold flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer font-mono">
@@ -491,7 +491,7 @@ export default function StudentDashboard() {
                 />
               </label>
             </div>
-            <h2 className="text-xs sm:text-sm font-heading font-bold text-white leading-tight">{user.name}</h2>
+            <h2 className="text-sm sm:text-base font-heading font-black text-slate-900 leading-tight">{user.name}</h2>
             <div className="flex flex-col gap-0.5 mt-1 font-mono text-[9.5px] sm:text-[10px]">
               <span className="text-blue-900 font-extrabold">ID: {user.participantId || user.id}</span>
               <span className="text-slate-600 font-medium truncate max-w-[200px]">REG: {user.registrationId}</span>
@@ -516,7 +516,7 @@ export default function StudentDashboard() {
                   className={`text-left p-2.5 sm:p-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
                     activeTab === tab.id 
                       ? "bg-blue-600/25 text-blue-700 border border-purple-500/50 shadow-inner" 
-                      : "text-slate-600 hover:bg-slate-100 hover:text-white"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
                   <span className={activeTab === tab.id ? "text-blue-600 shrink-0" : "text-slate-700 font-semibold shrink-0"}>{tab.icon}</span>
@@ -526,32 +526,102 @@ export default function StudentDashboard() {
               ))}
             </div>
           </div>
+
+          {/* Quick Participant Summary Card - Fills Sidebar Empty Space */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xl space-y-3 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="text-[11px] font-mono font-bold uppercase text-slate-500 tracking-wider">
+                PARTICIPANT BRIEF
+              </span>
+              <span className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                user.paymentStatus === "Verified" 
+                  ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                  : "bg-amber-100 text-amber-900 border border-amber-300"
+              }`}>
+                {user.paymentStatus === "Verified" ? "VERIFIED" : "PENDING"}
+              </span>
+            </div>
+            
+            <div className="space-y-2 font-sans">
+              <div>
+                <span className="text-[10px] font-mono text-slate-500 block uppercase">Institution</span>
+                <strong className="text-slate-900 text-xs font-bold block truncate" title={user.college}>
+                  {user.college || "Not Specified"}
+                </strong>
+              </div>
+
+              {user.shift && (
+                <div className="flex items-center justify-between bg-purple-50/70 border border-purple-200/80 px-2.5 py-1.5 rounded-xl">
+                  <span className="text-[10.5px] font-mono text-purple-900 font-bold">College Shift</span>
+                  <span className="text-[11px] font-mono font-extrabold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200 shadow-xs">
+                    {user.shift}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 rounded-xl text-[11px]">
+                <span className="text-slate-600 font-mono">Department</span>
+                <strong className="text-slate-900 font-mono truncate max-w-[130px]">{user.department || "N/A"}</strong>
+              </div>
+
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 rounded-xl text-[11px]">
+                <span className="text-slate-600 font-mono">Registered Events</span>
+                <strong className="text-blue-700 font-mono font-bold">{userMissions.length} / {maxEvents}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Helpdesk & Venue Info Card - Fills Sidebar Empty Space */}
+          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white border border-purple-500/40 rounded-2xl p-4 shadow-xl space-y-2.5 text-xs">
+            <div className="flex items-center gap-2 text-amber-400 font-mono text-[11px] font-bold uppercase tracking-wider">
+              <span>📍</span>
+              <span>SYMPOSIUM HELPDESK</span>
+            </div>
+            <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
+              {symposium?.venue ? `Venue: ${symposium.venue}` : "Don Bosco College, Yelagiri Hills"}
+            </p>
+            <div className="pt-1.5 border-t border-slate-800 text-[10.5px] text-slate-400 font-mono flex items-center justify-between">
+              <span>Support Desk:</span>
+              <strong className="text-amber-300 font-bold">{symposium?.contactPhone || "+91 98765 43210"}</strong>
+            </div>
+          </div>
         </aside>
 
         {/* Main Content Area */}
         <div className="flex-1 space-y-5 sm:space-y-6 min-w-0">
           
-          {/* Payment Status Banners */}
+          {/* Payment Status Banners - High Contrast & Fully Visible */}
           {user.paymentStatus === "Pending" ? (
-            <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-amber-500/40 bg-amber-50 border border-amber-200 relative overflow-hidden shadow-xl">
+            <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-amber-400 bg-amber-50 relative overflow-hidden shadow-xl">
               <div className="flex gap-3 sm:gap-4 items-start">
-                <AlertCircle className="text-orange-500 shrink-0 mt-0.5" size={20} />
-                <div className="text-xs">
-                  <h3 className="font-heading font-bold text-orange-600 mb-1 uppercase tracking-wider">OFFLINE PAYMENT PENDING</h3>
-                  <p className="text-amber-200/90 leading-relaxed font-sans">
-                    Your Participant ID is <strong className="text-slate-900 font-extrabold font-mono font-bold">{user.participantId || user.id}</strong> (Reg No: <strong className="text-slate-900 font-extrabold font-mono font-bold">{user.registrationId}</strong>). Please pay the registration fee (₹{symposium?.regFee ?? 150}) at the Registration Desk to verify your entry. Once verified, Event Registrations, Team Invitations, Hall Ticket, AI Passport, and Food Token will be unlocked.
+                <div className="p-2 rounded-xl bg-amber-200/80 border border-amber-300 text-amber-800 shrink-0 mt-0.5 shadow-xs">
+                  <AlertCircle size={22} className="text-amber-800" />
+                </div>
+                <div className="text-xs space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-heading font-black text-amber-950 text-sm uppercase tracking-wider">
+                      OFFLINE PAYMENT PENDING
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded-full border border-amber-300">
+                      ACTION REQUIRED AT REGISTRATION DESK
+                    </span>
+                  </div>
+                  <p className="text-amber-950 font-medium leading-relaxed font-sans text-xs">
+                    Your Participant ID is <strong className="text-amber-950 font-black font-mono bg-amber-200/90 px-1.5 py-0.5 rounded border border-amber-300 select-all">{user.participantId || user.id}</strong> (Reg No: <strong className="text-amber-950 font-black font-mono bg-amber-200/90 px-1.5 py-0.5 rounded border border-amber-300 select-all">{user.registrationId}</strong>). Please pay the registration fee (₹{symposium?.regFee ?? 150}) at the Registration Desk to verify your entry. Once verified, Event Registrations, Team Invitations, Hall Ticket, AI Passport, and Food Token will be unlocked.
                   </p>
                 </div>
               </div>
             </div>
           ) : user.paymentStatus === "Rejected" ? (
-            <div className="p-5 rounded-3xl border border-red-500/40 bg-rose-50 border border-rose-200 space-y-4 shadow-xl">
+            <div className="p-5 rounded-3xl border-2 border-red-400 bg-rose-50 space-y-4 shadow-xl">
               <div className="flex gap-4 items-start">
-                <AlertCircle className="text-rose-900 font-extrabold shrink-0 mt-0.5" size={20} />
-                <div className="text-xs">
-                  <h3 className="font-heading font-bold text-rose-900 font-bold mb-1">PAYMENT REJECTED</h3>
-                  <p className="text-red-200 leading-relaxed font-sans">
-                    Reason: <strong className="text-slate-900 font-extrabold font-semibold">{user.paymentRejectionReason || "Registration fee not received."}</strong>. Please visit the Registration Desk with your Participant ID: <strong className="text-slate-900 font-extrabold font-mono font-bold">{user.participantId || user.id}</strong>.
+                <div className="p-2 rounded-xl bg-red-200/80 border border-red-300 text-red-800 shrink-0 mt-0.5 shadow-xs">
+                  <AlertCircle className="text-red-800" size={22} />
+                </div>
+                <div className="text-xs space-y-1">
+                  <h3 className="font-heading font-black text-red-950 text-sm uppercase tracking-wider">PAYMENT REJECTED</h3>
+                  <p className="text-red-950 font-medium leading-relaxed font-sans">
+                    Reason: <strong className="text-red-950 font-black">{user.paymentRejectionReason || "Registration fee not received."}</strong>. Please visit the Registration Desk with your Participant ID: <strong className="text-red-950 font-black font-mono bg-red-200/90 px-1.5 py-0.5 rounded border border-red-300">{user.participantId || user.id}</strong>.
                   </p>
                 </div>
               </div>
@@ -563,11 +633,11 @@ export default function StudentDashboard() {
                   onChange={(e) => setResubmitTxId(e.target.value)}
                   placeholder="Enter offline payment receipt/ref no..."
                   required
-                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-red-500 placeholder:text-slate-700 font-semibold text-slate-900 font-bold font-mono text-[11px]"
+                  className="flex-1 bg-white border border-red-300 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-red-500 placeholder:text-slate-500 font-mono text-[11px]"
                 />
                 <button
                   type="submit"
-                  className="bg-red-600 hover:bg-red-500 text-slate-900 font-extrabold px-4 py-2 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[10px] cursor-pointer shadow-md"
+                  className="bg-red-600 hover:bg-red-500 text-white font-black px-4 py-2 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[10px] cursor-pointer shadow-md"
                 >
                   Resubmit Reference
                 </button>
@@ -841,7 +911,7 @@ export default function StudentDashboard() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-heading font-bold text-white">Event Registration Portal</h3>
+                    <h3 className="text-lg font-heading font-black text-slate-900">Event Registration Portal</h3>
                     <span className="text-[10px] font-mono font-bold bg-blue-50 border border-blue-200 text-blue-900 font-bold px-2.5 py-0.5 rounded-full border border-sky-500/40">
                       {userMissions.length} / {maxEvents} Selected
                     </span>
@@ -861,8 +931,8 @@ export default function StudentDashboard() {
                 </div>
               </div>
 
-              {/* Events Cards Grid */}
-              <div className="grid md:grid-cols-2 gap-4">
+              {/* Events Cards Grid - 3 Columns on Widescreen to fill empty space */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                 {filteredEvents.map(event => {
                   const isRegistered = user.registeredEvents?.includes(event.id);
                   const isTeamEvent = event.type === "Team";
@@ -892,7 +962,7 @@ export default function StudentDashboard() {
                           </span>
                         </div>
 
-                        <h4 className="text-sm font-heading font-bold text-white">{event.name}</h4>
+                        <h4 className="text-base font-heading font-black text-slate-900">{event.name}</h4>
                         <p className="text-[11px] text-slate-700 mt-1 font-sans">📍 Venue: {event.venue} | ⏰ Time: {event.startTime || "10:00 AM"} - {event.endTime || "10:50 AM"}</p>
 
                         <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-200 text-[10px] font-mono text-slate-600 font-medium">
@@ -935,14 +1005,14 @@ export default function StudentDashboard() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => setCreateTeamModalEvent(event)}
-                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-slate-900 font-extrabold py-2 rounded-xl text-[10px] uppercase font-mono flex items-center justify-center gap-1 cursor-pointer shadow-lg shadow-purple-600/30 transition-all"
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-2 rounded-xl text-[10px] uppercase font-mono flex items-center justify-center gap-1 cursor-pointer shadow-lg shadow-purple-600/30 transition-all"
                             >
                               <PlusCircle size={12} />
                               <span>Create Team</span>
                             </button>
                             <button
                               onClick={() => setJoinTeamModalEvent(event)}
-                              className="flex-1 bg-sky-600 hover:bg-sky-500 text-slate-900 font-extrabold py-2 rounded-xl text-[10px] uppercase font-mono flex items-center justify-center gap-1 cursor-pointer shadow-lg shadow-sky-600/30 transition-all"
+                              className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-extrabold py-2 rounded-xl text-[10px] uppercase font-mono flex items-center justify-center gap-1 cursor-pointer shadow-lg shadow-sky-600/30 transition-all"
                             >
                               <Users size={12} />
                               <span>Join Team</span>
@@ -951,7 +1021,7 @@ export default function StudentDashboard() {
                         ) : (
                           <button
                             onClick={() => handleRegisterIndividual(event.id)}
-                            className="w-full bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-slate-900 font-extrabold py-2 rounded-xl text-xs uppercase font-mono transition-transform hover:scale-[1.01] cursor-pointer shadow-lg shadow-purple-600/30"
+                            className="w-full bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-white font-extrabold py-2 rounded-xl text-xs uppercase font-mono transition-transform hover:scale-[1.01] cursor-pointer shadow-lg shadow-purple-600/30"
                           >
                             Register Individual
                           </button>
@@ -968,7 +1038,7 @@ export default function StudentDashboard() {
           {activeTab === "teams" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-heading font-bold text-white">Team Management Center</h3>
+                <h3 className="text-lg font-heading font-black text-slate-900">Team Management Center</h3>
                 <p className="text-xs text-slate-600 font-sans">Create teams, invite verified participants by Participant ID, and respond to invitations.</p>
               </div>
 
@@ -983,7 +1053,7 @@ export default function StudentDashboard() {
                     {joinRequests.filter(r => r.status === "Pending").map(req => (
                       <div key={req.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs shadow-md">
                         <div>
-                          <span className="font-bold text-white font-sans">{req.teamName}</span>
+                          <span className="font-black text-slate-900 font-sans">{req.teamName}</span>
                           <span className="text-slate-600 font-mono text-[10px] ml-2">(Leader: {req.leaderId})</span>
                           <p className="text-[10px] text-blue-600 font-bold">Invitation for Event: {req.eventId}</p>
                         </div>
@@ -1015,7 +1085,7 @@ export default function StudentDashboard() {
                   You are not part of any team yet. Go to Event Registration to create or join a team!
                 </div>
               ) : (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                   {myTeams.map(team => {
                     const isLeader = team.leaderId === (user.participantId || user.id);
                     return (
@@ -1041,7 +1111,7 @@ export default function StudentDashboard() {
                             </span>
                           </div>
 
-                          <h4 className="text-sm font-heading font-bold text-white">{team.teamName}</h4>
+                          <h4 className="text-base font-heading font-black text-slate-900">{team.teamName}</h4>
                           <p className="text-[11px] text-slate-700 font-sans">Event: <strong className="text-blue-900 font-bold font-mono font-bold">{team.eventName || team.missionName || missions.find(m => m.id === (team.missionId || team.eventId))?.name || "Competition Session"}</strong></p>
 
                           <div className="mt-3 pt-3 border-t border-slate-200 text-[10px] font-mono space-y-1">
@@ -1053,19 +1123,7 @@ export default function StudentDashboard() {
                                 const mName = isString ? mItem : (mItem.name || mId);
                                 const isLeader = mId === team.leaderId || (mItem.role === "Leader");
 
-                                if (!mounted || !user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-mono text-xs">
-        <div className="flex flex-col items-center gap-3 p-8 rounded-2xl bg-white border border-slate-200 shadow-xl max-w-sm w-full text-center">
-          <div className="w-10 h-10 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
-          <p className="font-bold text-slate-800 tracking-wider">VERIFYING PARTICIPANT SESSION...</p>
-          <p className="text-slate-500 text-[10px]">Redirecting to login portal...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
+                                return (
                                   <span key={idx} className="bg-slate-50 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-300 font-bold flex items-center gap-1">
                                     <span>{mName}</span>
                                     {mId && mId !== mName && <span className="text-slate-600 text-[9px]">({mId})</span>}
@@ -1080,7 +1138,7 @@ export default function StudentDashboard() {
                         {isLeader && (
                           <button
                             onClick={() => setInviteMemberModalTeam(team)}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-slate-900 font-extrabold py-2 rounded-xl text-xs uppercase font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-lg shadow-purple-600/30"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-2 rounded-xl text-xs uppercase font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-lg shadow-purple-600/30"
                           >
                             <UserPlus size={14} />
                             <span>Invite Member by Participant ID</span>
@@ -1098,7 +1156,7 @@ export default function StudentDashboard() {
           {activeTab === "food_token" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-heading font-bold text-white">Digital Food Token</h3>
+                <h3 className="text-lg font-heading font-black text-slate-900">Digital Food Token</h3>
                 <p className="text-xs text-slate-600 font-sans">Present this QR code at the dining hall entrance to claim your symposium lunch.</p>
               </div>
 
@@ -1201,7 +1259,7 @@ export default function StudentDashboard() {
           {/* TAB 6: Results */}
           {activeTab === "results" && symposium?.resultsPublished && (
             <div className="space-y-4">
-              <h3 className="text-base font-heading font-bold text-white">Official Symposium Results</h3>
+              <h3 className="text-lg font-heading font-black text-slate-900">Official Symposium Results</h3>
               {scores.length === 0 ? (
                 <div className="p-8 rounded-3xl bg-white border border-slate-200 text-center text-slate-600 text-xs font-mono shadow-xl">
                   Evaluation results are published. No scores recorded under your participant ID yet.
@@ -1311,7 +1369,7 @@ export default function StudentDashboard() {
       {createTeamModalEvent && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-purple-500/40 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl font-mono">
-            <h3 className="text-base font-heading font-bold text-white flex items-center gap-2">
+            <h3 className="text-base font-heading font-black text-slate-900 flex items-center gap-2">
               <PlusCircle className="text-blue-600" size={18} />
               Create Team for {createTeamModalEvent.name}
             </h3>
@@ -1344,7 +1402,7 @@ export default function StudentDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-slate-900 font-extrabold font-mono py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-purple-600/30"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold font-mono py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-purple-600/30"
                 >
                   Create Team
                 </button>
@@ -1358,7 +1416,7 @@ export default function StudentDashboard() {
       {inviteMemberModalTeam && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-purple-500/40 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl font-mono">
-            <h3 className="text-base font-heading font-bold text-white flex items-center gap-2">
+            <h3 className="text-base font-heading font-black text-slate-900 flex items-center gap-2">
               <UserPlus className="text-blue-600" size={18} />
               Invite Member to {inviteMemberModalTeam.teamName}
             </h3>
@@ -1387,7 +1445,7 @@ export default function StudentDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-slate-900 font-extrabold font-mono py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-purple-600/30"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold font-mono py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-purple-600/30"
                 >
                   Send Invitation
                 </button>
@@ -1401,7 +1459,7 @@ export default function StudentDashboard() {
       {joinTeamModalEvent && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-sky-500/40 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl font-mono">
-            <h3 className="text-base font-heading font-bold text-white flex items-center gap-2">
+            <h3 className="text-base font-heading font-black text-slate-900 flex items-center gap-2">
               <Users className="text-blue-900 font-extrabold" size={18} />
               Join Team for {joinTeamModalEvent.name}
             </h3>
@@ -1430,7 +1488,7 @@ export default function StudentDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-sky-600 hover:bg-sky-500 text-slate-900 font-extrabold font-mono py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-sky-600/30"
+                  className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-extrabold font-mono py-2 rounded-xl text-xs cursor-pointer shadow-lg shadow-sky-600/30"
                 >
                   Send Join Request
                 </button>
@@ -1448,20 +1506,20 @@ export default function StudentDashboard() {
           <div className="bg-white border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl font-sans text-slate-900 font-bold animate-scaleUp max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div>
-                <span className="text-[9.5px] font-mono text-orange-500 font-bold uppercase tracking-widest block">PARTICIPANT PROFILE EDITOR</span>
-                <h3 className="text-base font-heading font-black text-white">Edit Personal Information</h3>
+                <span className="text-[9.5px] font-mono text-orange-600 font-bold uppercase tracking-widest block">PARTICIPANT PROFILE EDITOR</span>
+                <h3 className="text-base font-heading font-black text-slate-900">Edit Personal Information</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditProfileModal(false)}
-                className="text-slate-600 hover:text-white text-sm font-mono p-1 cursor-pointer"
+                className="text-slate-600 hover:text-slate-900 text-sm font-mono p-1 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             {editProfileError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 border border-red-500/50 text-red-200 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-red-950 text-xs font-mono font-bold">
                 ⚠️ {editProfileError}
               </div>
             )}
@@ -1658,7 +1716,7 @@ export default function StudentDashboard() {
                 <button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="flex-1 bg-orange-600 hover:bg-orange-500 text-slate-900 font-extrabold py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-600/30 flex items-center justify-center gap-1.5"
+                  className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-black py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-600/30 flex items-center justify-center gap-1.5"
                 >
                   <span>{isSavingProfile ? "Saving..." : "Save Changes"}</span>
                 </button>
@@ -1678,7 +1736,7 @@ export default function StudentDashboard() {
 
             <div>
               <span className="text-[10px] font-mono text-emerald-800 font-extrabold uppercase tracking-widest font-bold block">TEAM REGISTRATION SUCCESSFUL</span>
-              <h3 className="text-xl font-heading font-black text-white mt-1">Team Created!</h3>
+              <h3 className="text-xl font-heading font-black text-slate-900 mt-1">Team Created!</h3>
               <p className="text-xs text-slate-700 font-sans mt-1">
                 You are registered as Team Leader for <strong className="text-slate-900 font-extrabold">{createdTeamSuccess.name}</strong>.
               </p>
@@ -1723,11 +1781,11 @@ export default function StudentDashboard() {
             <div className="flex justify-between items-center border-b border-purple-200 pb-3">
               <div className="text-left">
                 <span className="text-[9px] font-mono text-blue-700 uppercase tracking-widest font-bold">CAMPUS STALLS VOUCHER</span>
-                <h4 className="text-sm font-heading font-black text-white">REFRESHMENT TOKEN QR</h4>
+                <h4 className="text-sm font-heading font-black text-slate-900">REFRESHMENT TOKEN QR</h4>
               </div>
               <button
                 onClick={() => setShowRefreshmentQRModal(false)}
-                className="text-slate-600 hover:text-white text-xs font-mono p-1"
+                className="text-slate-600 hover:text-slate-900 text-xs font-mono p-1"
               >
                 ✕
               </button>
@@ -1747,7 +1805,7 @@ export default function StudentDashboard() {
 
               <div className="text-center font-mono space-y-0.5">
                 <div className="text-xs font-black text-blue-700">{refreshmentToken.id}</div>
-                <div className="text-sm font-bold text-white">{user.name}</div>
+                <div className="text-sm font-black text-slate-900">{user.name}</div>
                 <div className="text-[10px] text-slate-600">{user.participantId} • {user.college}</div>
               </div>
             </div>
