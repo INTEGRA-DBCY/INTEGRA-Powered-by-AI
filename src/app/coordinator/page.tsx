@@ -291,7 +291,17 @@ export default function CoordinatorDashboard() {
     link.click();
   };
 
-  if (!coordinator) return null;
+  if (!mounted || !coordinator || (coordinator.role !== "coordinator" && coordinator.role !== "admin" && coordinator.role !== "super_admin")) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-mono text-xs">
+        <div className="flex flex-col items-center gap-3 p-8 rounded-2xl bg-white border border-slate-200 shadow-xl max-w-sm w-full text-center">
+          <div className="w-10 h-10 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+          <p className="font-bold text-slate-800 tracking-wider">VERIFYING COORDINATOR ACCESS...</p>
+          <p className="text-slate-500 text-[10px]">Redirecting to authorized login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold overflow-x-hidden max-w-full w-full">
@@ -608,19 +618,7 @@ export default function CoordinatorDashboard() {
                     const duty = vol.volunteerDuty;
                     const isForThisEvent = duty?.eventId === selectedMission.id || duty?.venueName === selectedMission.venue;
 
-                    if (!mounted || !coordinator || (coordinator.role !== "coordinator" && coordinator.role !== "admin" && coordinator.role !== "super_admin")) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-mono text-xs">
-        <div className="flex flex-col items-center gap-3 p-8 rounded-2xl bg-white border border-slate-200 shadow-xl max-w-sm w-full text-center">
-          <div className="w-10 h-10 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
-          <p className="font-bold text-slate-800 tracking-wider">VERIFYING COORDINATOR ACCESS...</p>
-          <p className="text-slate-500 text-[10px]">Redirecting to authorized login...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
+                    return (
                       <div 
                         key={vol.id}
                         className={`p-4 rounded-2xl border transition-all shadow-xl space-y-3 ${
