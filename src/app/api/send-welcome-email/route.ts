@@ -147,6 +147,11 @@ export async function POST(req: NextRequest) {
         <span class="cred-label">🆔 Participant ID:</span>
         <span class="cred-val accent" style="font-size:15px;color:#38bdf8;font-weight:900;">${safePid}</span>
       </div>
+      ${safeRegId ? `
+      <div class="cred-row">
+        <span class="cred-label">📋 Registration ID:</span>
+        <span class="cred-val" style="color:#ffffff;font-weight:800;">${safeRegId}</span>
+      </div>` : ""}
       <div class="cred-row">
         <span class="cred-label">👤 Username:</span>
         <span class="cred-val accent">${safeUsername}</span>
@@ -223,7 +228,7 @@ We’re excited to have you join us for an exciting journey of Technology • In
 
 🔐 YOUR PARTICIPANT CREDENTIALS
 
-🆔 Participant ID: ${participantId || safePid}
+🆔 Participant ID: ${participantId || safePid}${registrationId ? `\n📋 Registration ID: ${registrationId}` : ""}
 👤 Username: ${loginUsername}
 🔑 Password: ${loginPassword}${shift ? `\n⏱️ Shift: ${shift}` : ""}${college ? `\n🏛️ College: ${college}` : ""}${department ? `\n📚 Department: ${department}${year ? ` • ${year}` : ""}` : ""}
 🌐 Portal Login: ${loginUrl}
