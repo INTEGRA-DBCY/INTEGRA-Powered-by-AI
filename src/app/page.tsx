@@ -224,12 +224,23 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [booting]);
 
+  useEffect(() => {
+    if (selectedMission) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [selectedMission]);
+
   if (booting) {
     return <BootScreen onComplete={() => setBooting(false)} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold overflow-x-hidden max-w-full w-full">
+    <div className="min-h-screen bg-slate-50 text-slate-900 relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold overflow-x-clip max-w-full w-full">
       
       {/* Background Luminous Ambient Halos */}
       <div className="absolute top-12 left-1/4 w-[500px] h-[500px] bg-blue-600/15 rounded-full blur-[140px] pointer-events-none" />
@@ -584,70 +595,6 @@ export default function Home() {
             </div>
           ))}
         </div>
-
-        {/* Event Detail Modal Overlay */}
-        {selectedMission && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="w-full max-w-xl bg-white border border-purple-500/40 rounded-3xl p-6 relative max-h-[90vh] overflow-y-auto shadow-2xl text-slate-900 font-sans bg-white border border-slate-200">
-              <button 
-                onClick={() => setSelectedMission(null)}
-                className="absolute top-4 right-4 text-slate-600 hover:text-white cursor-pointer font-bold font-mono"
-              >
-                Close (✕)
-              </button>
-              
-              <span className="text-[10px] uppercase font-mono tracking-widest text-emerald-900 font-bold bg-emerald-50 border border-emerald-200 border border-emerald-500/40 font-bold px-2.5 py-0.5 rounded-full">
-                {selectedMission.category}
-              </span>
-              <div className="flex gap-4 items-center mt-3 mb-2">
-                {selectedMission.logoUrl ? (
-                  <img
-                    src={selectedMission.logoUrl}
-                    alt={selectedMission.name}
-                    className="w-20 h-20 rounded-2xl object-cover border-2 border-purple-300 shadow-md p-0.5 bg-white shrink-0"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-slate-100 border-2 border-slate-300 flex items-center justify-center text-blue-700 font-mono text-base font-extrabold shrink-0">
-                    AI
-                  </div>
-                )}
-                <h3 className="text-lg font-heading font-extrabold text-slate-900">
-                  {selectedMission.name}
-                </h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-slate-700 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                <div>🏢 Venue: {selectedMission.venue}</div>
-                <div>⏱️ Duration: {selectedMission.duration}</div>
-                <div>👨‍🏫 Lead: {selectedMission.coordinator}</div>
-                <div>📞 Phone: {selectedMission.phone}</div>
-              </div>
-
-              <h4 className="text-xs font-heading uppercase text-blue-600 tracking-widest mb-2 font-bold font-mono">Mission Directives</h4>
-              <ul className="list-disc pl-4 text-xs text-slate-700 space-y-1.5 mb-6">
-                {selectedMission.rules.map((rule, idx) => (
-                  <li key={idx}>{rule}</li>
-                ))}
-              </ul>
-
-
-
-              <div className="flex gap-3 font-mono">
-                <Link 
-                  href="/register" 
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-sky-600 text-center text-white font-bold text-xs uppercase tracking-wider py-2.5 rounded-xl transition-transform hover:scale-[1.02] shadow-lg shadow-purple-600/30"
-                >
-                  Register in Mission
-                </Link>
-                <button 
-                  onClick={() => setSelectedMission(null)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-700 border border-slate-300 text-slate-700 font-bold text-xs py-2.5 rounded-xl cursor-pointer"
-                >
-                  Back to List
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </section>
 
       {/* Leaderboard Section */}
@@ -901,6 +848,99 @@ export default function Home() {
 
       {/* Floating AI Coordinator Assistant */}
       <AIAssistant />
+
+      {/* Event Detail & Rules Modal (Root-level for proper mobile viewport centering) */}
+      {selectedMission && (
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setSelectedMission(null)}
+        >
+          <div 
+            className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[90vh] my-auto overflow-hidden text-slate-900 font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header: Category & Close Button */}
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-blue-700 font-extrabold bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
+                {selectedMission.category}
+              </span>
+              <button 
+                onClick={() => setSelectedMission(null)}
+                className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded-full text-xs font-mono font-bold cursor-pointer transition-colors"
+                aria-label="Close rules modal"
+              >
+                <span>Close</span>
+                <span className="text-sm font-black leading-none">✕</span>
+              </button>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div className="overflow-y-auto py-3 space-y-4 pr-1 scrollbar-thin flex-1">
+              {/* Event Title & Logo */}
+              <div className="flex gap-3.5 items-center">
+                {selectedMission.logoUrl ? (
+                  <img
+                    src={selectedMission.logoUrl}
+                    alt={selectedMission.name}
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-purple-200 shadow-md p-0.5 bg-white shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-blue-50 border-2 border-blue-200 flex items-center justify-center text-blue-700 font-mono text-base font-extrabold shrink-0">
+                    AI
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-base sm:text-lg font-heading font-extrabold text-slate-900 leading-snug">
+                    {selectedMission.name}
+                  </h3>
+                  <p className="text-[11px] text-blue-600 font-mono font-semibold mt-0.5">
+                    Don Bosco College (Co-Ed), Yelagiri Hills
+                  </p>
+                </div>
+              </div>
+
+              {/* Event Details Matrix */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-slate-700 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="flex items-center gap-1.5"><span className="text-blue-600 font-bold">🏢 Venue:</span> <span className="font-semibold text-slate-900">{selectedMission.venue}</span></div>
+                <div className="flex items-center gap-1.5"><span className="text-blue-600 font-bold">⏱️ Duration:</span> <span className="font-semibold text-slate-900">{selectedMission.duration}</span></div>
+                <div className="flex items-center gap-1.5"><span className="text-blue-600 font-bold">👨‍🏫 Lead:</span> <span className="font-semibold text-slate-900">{selectedMission.coordinator}</span></div>
+                {selectedMission.phone && (
+                  <div className="flex items-center gap-1.5"><span className="text-blue-600 font-bold">📞 Phone:</span> <a href={`tel:${selectedMission.phone}`} className="font-semibold text-blue-700 hover:underline">{selectedMission.phone}</a></div>
+                )}
+              </div>
+
+              {/* Mission Directives / Rules */}
+              <div>
+                <h4 className="text-xs font-heading uppercase text-blue-900 tracking-wider mb-2 font-extrabold font-mono flex items-center gap-1.5">
+                  <span>📋</span>
+                  <span>Mission Directives & Rules</span>
+                </h4>
+                <ul className="list-disc pl-5 text-xs text-slate-700 space-y-2 leading-relaxed font-sans">
+                  {selectedMission.rules.map((rule, idx) => (
+                    <li key={idx} className="pl-0.5">{rule}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Sticky Action Footer */}
+            <div className="flex gap-2.5 font-mono pt-3 border-t border-slate-200 shrink-0">
+              <Link 
+                href="/register" 
+                className="flex-1 bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-center text-white font-bold text-xs uppercase tracking-wider py-2.5 rounded-xl transition-transform hover:scale-[1.01] shadow-lg shadow-purple-600/20"
+              >
+                Register for Event
+              </Link>
+              <button 
+                onClick={() => setSelectedMission(null)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs py-2.5 rounded-xl cursor-pointer transition-colors"
+              >
+                Back to List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

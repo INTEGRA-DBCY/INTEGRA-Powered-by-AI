@@ -174,23 +174,10 @@ button, a, input, select, textarea {
 }
 
 @media (max-width: 768px) {
-  /* Disable expensive backdrop filters and heavy blurs on mobile GPU */
-  .backdrop-blur-md, .backdrop-blur-xl, .backdrop-blur-2xl, .backdrop-blur-3xl {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background-color: rgba(255, 255, 255, 0.98) !important;
-  }
-
   /* Disable scanner beam continuous keyframe animation on mobile */
   .scanner-ray {
     animation: none !important;
     display: none !important;
-  }
-
-  /* Optimize off-screen rendering for smooth 60fps scrolling */
-  section {
-    content-visibility: auto;
-    contain-intrinsic-size: 1px 500px;
   }
 
   /* Hardware-accelerated smooth scrolling */
