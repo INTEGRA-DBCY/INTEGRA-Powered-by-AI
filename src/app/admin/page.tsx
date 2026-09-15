@@ -5102,7 +5102,7 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-12 bg-slate-50/60 p-3.5 font-mono text-[11px] font-bold text-slate-600 border-b border-slate-200">
                     <div className="col-span-1 text-center">RANK</div>
                     <div className="col-span-4">CANDIDATE / INSTITUTION</div>
-                    <div className="col-span-3">REGISTRATION ID</div>
+                    <div className="col-span-3">PARTICIPANT ID</div>
                     <div className="col-span-4 text-right">SCORE POINTS & ACTIONS</div>
                   </div>
 
@@ -5119,7 +5119,7 @@ export default function AdminDashboard() {
                             <div className="text-[11px] text-slate-600 font-mono mt-0.5">{student.college}</div>
                           </div>
                           <div className="col-span-3 font-mono font-bold text-slate-700">
-                            {student.registrationId || student.participantId || "N/A"}
+                            {student.participantId || student.registrationId || "N/A"}
                           </div>
                           <div className="col-span-4 flex justify-end">
                             {editingStudentPointsId === student.id ? (
