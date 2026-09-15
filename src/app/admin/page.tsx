@@ -1280,7 +1280,9 @@ export default function AdminDashboard() {
     e.preventDefault();
     setIsCloudSyncing(true);
     try {
+      const currentSettings = mockDB.getSettings();
       const updated: any = {
+        ...currentSettings,
         id: "sys-settings",
         eventTitle: sysTitle.trim(),
         eventYear: sysYear.trim(),
@@ -1297,7 +1299,8 @@ export default function AdminDashboard() {
         aboutText: sysAboutText.trim(),
         contactEmail: sysContactEmail.trim(),
         contactPhone: sysContactPhone.trim(),
-        mapCoordinates: sysMapCoordinates.trim()
+        mapCoordinates: sysMapCoordinates.trim(),
+        feedbackQuestions: sysFeedbackQuestions
       };
 
       mockDB.updateSettings(updated);
@@ -1390,34 +1393,49 @@ export default function AdminDashboard() {
   };
 
   // Feedback Questions Handlers
-  const handleAddFeedbackQuestion = (e: React.FormEvent) => {
+  const handleAddFeedbackQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuestionText.trim()) return;
+    const trimmed = newQuestionText.trim();
+    if (!trimmed) return;
     
     const sys = mockDB.getSettings();
-    const updatedQuestions = [...(sys.feedbackQuestions || []), newQuestionText.trim()];
+    const currentQuestions = Array.isArray(sys.feedbackQuestions) ? sys.feedbackQuestions : [];
+    const updatedQuestions = [...currentQuestions, trimmed];
     
-    mockDB.updateSettings({
+    // 1. Immediately update UI state
+    setSysFeedbackQuestions(updatedQuestions);
+    setNewQuestionText("");
+    
+    // 2. Persist to mockDB and Cloud Firestore
+    const updatedSettings = {
       ...sys,
       feedbackQuestions: updatedQuestions
-    });
+    };
+    mockDB.updateSettings(updatedSettings);
+    await firebaseService.saveSettings(updatedSettings);
     
-    setNewQuestionText("");
-    fetchData();
+    fetchData(true);
     alert("New feedback question added successfully!");
   };
 
-  const handleRemoveFeedbackQuestion = (idxToRemove: number) => {
+  const handleRemoveFeedbackQuestion = async (idxToRemove: number) => {
     if (confirm("Are you sure you want to remove this feedback question?")) {
       const sys = mockDB.getSettings();
-      const updatedQuestions = (sys.feedbackQuestions || []).filter((_, idx) => idx !== idxToRemove);
+      const currentQuestions = Array.isArray(sys.feedbackQuestions) ? sys.feedbackQuestions : [];
+      const updatedQuestions = currentQuestions.filter((_, idx) => idx !== idxToRemove);
       
-      mockDB.updateSettings({
+      // 1. Immediately update UI state
+      setSysFeedbackQuestions(updatedQuestions);
+      
+      // 2. Persist to mockDB and Cloud Firestore
+      const updatedSettings = {
         ...sys,
         feedbackQuestions: updatedQuestions
-      });
+      };
+      mockDB.updateSettings(updatedSettings);
+      await firebaseService.saveSettings(updatedSettings);
       
-      fetchData();
+      fetchData(true);
     }
   };
 
@@ -1452,9 +1470,9 @@ export default function AdminDashboard() {
     }
     fetchData(true);
 
-    // Real-time Cloud Sync on mount
+    // Real-time Cloud Sync on mount — refresh settings with cloud data
     mockDB.syncFromCloud().then(() => {
-      fetchData(false);
+      fetchData(true);
     });
 
     // Auto-sync when tab receives focus or every 6 seconds in background
@@ -1496,6 +1514,10 @@ export default function AdminDashboard() {
     setRefreshmentTxns(mockDB.getRefreshmentTransactions(active.id));
     setRefreshmentOverview(mockDB.getRefreshmentOverview(active.id));
     setRefreshmentAllowanceInput(active.refreshmentAllowance || 20);
+
+    // Always keep active feedback questions in sync
+    const currentSys = mockDB.getSettings();
+    setSysFeedbackQuestions(currentSys.feedbackQuestions || []);
     
     // Load Settings form values ONLY on initial load or explicit reload (prevents overwriting user inputs while editing)
     if (!initialSettingsLoadedRef.current || forceSettingsReload) {
@@ -1516,7 +1538,6 @@ export default function AdminDashboard() {
       setSysContactEmail(sys.contactEmail || active.contactEmail || "");
       setSysContactPhone(sys.contactPhone || active.contactPhone || "");
       setSysMapCoordinates(sys.mapCoordinates || "");
-      setSysFeedbackQuestions(sys.feedbackQuestions || []);
       setCertCollegeName(sys.collegeName || "ABC ENGINEERING COLLEGE");
       setCertCollegeTagline(sys.collegeTagline || "Excellence Through Innovation");
       setCertCollegeLogoUrl(sys.collegeLogoUrl || "/college-logo.png");
