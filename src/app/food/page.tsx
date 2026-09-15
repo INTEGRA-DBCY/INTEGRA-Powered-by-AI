@@ -53,9 +53,22 @@ export default function FoodCoordinatorDashboard() {
 
     let targetInput = rawScannedCode.trim();
     try {
-      const parsed = JSON.parse(targetInput);
-      targetInput = parsed.tokenId || parsed.participantId || targetInput;
+      if (targetInput.startsWith("{")) {
+        const parsed = JSON.parse(targetInput);
+        targetInput = parsed.tokenId || parsed.participantId || targetInput;
+      }
     } catch {}
+
+    // Extract PID from URL if full URL is scanned
+    if (targetInput.includes("verify?") || targetInput.includes("?pid=") || targetInput.includes("?id=")) {
+      try {
+        const urlObj = new URL(targetInput);
+        targetInput = urlObj.searchParams.get("pid") || urlObj.searchParams.get("participantId") || urlObj.searchParams.get("id") || targetInput;
+      } catch {
+        const match = targetInput.match(/[?&](?:pid|participantId|id)=([^&]+)/);
+        if (match) targetInput = decodeURIComponent(match[1]);
+      }
+    }
 
     const curr = mockDB.getCurrentUser();
     const volunteerId = curr ? `${curr.name} (${curr.id})` : "Dining Coordinator";
@@ -108,11 +121,11 @@ export default function FoodCoordinatorDashboard() {
                     {symposium?.name || "INTEGRA"} {symposium?.year || "2026"}
                   </span>
                   <span className="text-[9px] sm:text-[9.5px] bg-emerald-500/20 text-emerald-900 font-bold border border-emerald-500/40 font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    FOOD & REFRESHMENT VOLUNTEER DESK
+                    FOOD & DINING VOLUNTEER DESK
                   </span>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-600 font-mono mt-0.5">
-                  Food Volunteer Desk • Scanning & Serving Both Meals & Refreshments
+                  Food Volunteer Desk • Scanning & Serving Lunch / Meal Tokens
                 </p>
               </div>
             </Link>
@@ -162,16 +175,16 @@ export default function FoodCoordinatorDashboard() {
 
           <div className="bg-white border border-emerald-500/20 p-6 rounded-2xl relative overflow-hidden shadow-xl">
             <h2 className="text-base font-heading font-bold mb-4 text-white flex items-center gap-2 uppercase tracking-wider">
-              <Utensils size={18} className="text-emerald-800 font-extrabold" /> Food & Refreshment Token Scanner
+              <Utensils size={18} className="text-emerald-800 font-extrabold" /> Lunch / Meal Token Scanner
             </h2>
 
             {/* Live Camera QR Scanner Component */}
             <div className="mb-5">
               <CameraQRScanner
                 onScan={handleProcessFoodScan}
-                title="Live Food & Refreshment Camera Scanner"
+                title="Live Lunch Token Camera Scanner"
                 themeColor="#059669"
-                placeholder="Point camera at participant's Food (Meal) or Refreshment Token QR pass..."
+                placeholder="Point camera at participant's Lunch Food Token QR pass..."
                 autoStart={true}
               />
             </div>
@@ -182,7 +195,7 @@ export default function FoodCoordinatorDashboard() {
                 type="text"
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
-                placeholder="Or manually enter Food or Refreshment Token ID, Participant ID (e.g. INT26-0045)..."
+                placeholder="Or manually enter Food Token ID, Participant ID (e.g. INT26-0045)..."
                 required
                 className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-700 font-semibold text-slate-900 font-bold font-mono text-xs font-bold"
               />
@@ -190,7 +203,7 @@ export default function FoodCoordinatorDashboard() {
                 type="submit"
                 className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-extrabold px-5 py-2.5 rounded-xl transition-transform hover:scale-[1.01] uppercase tracking-wider text-[10px] font-mono cursor-pointer shadow-lg shadow-emerald-600/30 text-center"
               >
-                Log Check-in (Meal / Refreshment)
+                Log Check-in (Lunch / Meal)
               </button>
             </form>
           </div>

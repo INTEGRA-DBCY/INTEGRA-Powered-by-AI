@@ -260,10 +260,6 @@ export default function RegisterPage() {
                 <span className="text-blue-900 font-extrabold">{registeredStudent.participantId}</span>
               </div>
               <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                <span className="text-slate-600">Registration Number</span>
-                <span className="text-emerald-800 font-extrabold">{registeredStudent.registrationId}</span>
-              </div>
-              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                 <span className="text-slate-600">Full Name</span>
                 <span className="text-slate-900 font-extrabold">{registeredStudent.name}</span>
               </div>

@@ -1700,32 +1700,7 @@ export default function AdminDashboard() {
     try {
       await mockDB.verifyPayment(studentToVerify.id, adminId, verifyRemarks, verifyPaymentMode);
       fetchData();
-
-      // Send Hall Ticket email to participant after payment verified
-      if (studentToVerify.email) {
-        const missionsList = mockDB.getMissions();
-        const registeredEvents = missionsList
-          .filter(m => studentToVerify.registeredEvents?.includes(m.id))
-          .map(m => ({ name: m.name, venue: m.venue, duration: m.duration }));
-
-        fetch("/api/send-hall-ticket", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: studentToVerify.name,
-            email: studentToVerify.email,
-            participantId: studentToVerify.participantId || "",
-            registrationId: studentToVerify.registrationId || "",
-            college: studentToVerify.college || "",
-            department: studentToVerify.department || "",
-            year: studentToVerify.year || "",
-            phone: studentToVerify.phone || "",
-            registeredEvents
-          })
-        }).catch(() => console.warn("Hall Ticket email network error"));
-      }
-
-      alert(`Payment verified for ${studentToVerify.name}! Credentials and Food Token unlocked.`);
+      alert(`Payment verified for ${studentToVerify.name}! Event registration and Food Token unlocked.`);
     } catch (err: any) {
       alert(err?.message || "Failed to verify payment");
     }
@@ -2537,7 +2512,7 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            {/* CATEGORY 3: EVENT OPERATIONS & STALLS */}
+            {/* CATEGORY 3: EVENT OPERATIONS */}
             <div className="rounded-xl overflow-hidden bg-slate-50/60 border border-rose-500/30 shadow-xs">
               <button
                 type="button"
@@ -2546,7 +2521,7 @@ export default function AdminDashboard() {
               >
                 <div className="flex items-center gap-2">
                   <Cpu size={13} className="text-rose-400" />
-                  <span>Operations & Stalls</span>
+                  <span>Event Operations</span>
                 </div>
                 <ChevronDown size={14} className={`text-rose-400 transition-transform duration-200 ${openSidebarSections.operations ? "rotate-180" : ""}`} />
               </button>

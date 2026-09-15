@@ -20,7 +20,6 @@ export default function VolunteerDashboard() {
   const [eventAttendeesList, setEventAttendeesList] = useState<DBUser[]>([]);
 
   // Food Distributor Volunteer Mode state
-  const [distributionMode, setDistributionMode] = useState<"FOOD" | "REFRESHMENT">("FOOD");
   const [claimedFoodTokensList, setClaimedFoodTokensList] = useState<FoodToken[]>([]);
 
   // Scanner state
@@ -120,15 +119,25 @@ export default function VolunteerDashboard() {
     if (!rawScannedCode || !rawScannedCode.trim()) return;
 
     let targetInput = rawScannedCode.trim();
-    let tokenType = "FOOD";
 
+    // 1. JSON payload parsing
     try {
       if (targetInput.startsWith("{")) {
         const parsed = JSON.parse(targetInput);
-        if (parsed.type) tokenType = parsed.type;
         targetInput = parsed.participantId || parsed.registrationId || parsed.tokenId || targetInput;
       }
     } catch {}
+
+    // 2. URL parsing (if participant presented verification link or badge URL)
+    if (targetInput.includes("verify?") || targetInput.includes("?pid=") || targetInput.includes("?id=")) {
+      try {
+        const urlObj = new URL(targetInput);
+        targetInput = urlObj.searchParams.get("pid") || urlObj.searchParams.get("participantId") || urlObj.searchParams.get("id") || targetInput;
+      } catch {
+        const match = targetInput.match(/[?&](?:pid|participantId|id)=([^&]+)/);
+        if (match) targetInput = decodeURIComponent(match[1]);
+      }
+    }
 
     const curr = mockDB.getCurrentUser();
     const volunteerId = curr ? `${curr.name} (${curr.id})` : "Volunteer";
@@ -137,16 +146,14 @@ export default function VolunteerDashboard() {
     try {
       if (foodMode) {
         // ── FOOD DISTRIBUTOR SCAN ──
-        // Redeem food token or refreshment token based on selected distributionMode
-        const redeemedToken = mockDB.redeemFoodToken(rawScannedCode.trim(), volunteerId, distributionMode);
+        const redeemedToken = mockDB.redeemFoodToken(targetInput, volunteerId);
         setScanResult({
           success: true,
-          message: `✓ ${distributionMode === "REFRESHMENT" ? "Refreshment Token" : "Lunch/Meal Token"} Redeemed! Successfully served to ${redeemedToken.studentName || redeemedToken.participantId}.`,
+          message: `✓ Lunch/Meal Token Redeemed! Successfully served to ${redeemedToken.studentName || redeemedToken.participantName || redeemedToken.participantId}.`,
           token: redeemedToken
         });
       } else {
         // ── EVENT ENTRY SCAN ──
-        // Verify event attendance and mark Present
         const activeEventId = selectedEventId || curr?.volunteerDuty?.eventId || missions[0]?.id;
         if (!activeEventId) {
           throw new Error("No event selected. Please select a competition event to verify attendance.");
@@ -156,7 +163,7 @@ export default function VolunteerDashboard() {
         const eventObj = missions.find(m => m.id === activeEventId);
         setScanResult({
           success: true,
-          message: `✓ Attendance Verified! Marked PRESENT for ${eventObj?.name || "the event"}.`,
+          message: `✓ Attendance Verified! ${student.name} marked PRESENT for ${eventObj?.name || "the event"}.`,
           student
         });
       }
@@ -274,7 +281,7 @@ export default function VolunteerDashboard() {
                         ? "bg-amber-200 text-amber-900 border border-amber-300" 
                         : "bg-blue-200 text-blue-900 border border-blue-300"
                     }`}>
-                      {foodMode ? "Food & Refreshment Distributor" : "Event Entry Volunteer"}
+                      {foodMode ? "Food & Meals Distributor" : "Event Entry Volunteer"}
                     </span>
                   </div>
                   <p className="text-slate-600 text-[11px] font-sans mt-0.5">
@@ -305,52 +312,14 @@ export default function VolunteerDashboard() {
               <div>
                 <h2 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
                   <QrCode size={18} className={foodMode ? "text-amber-600" : "text-blue-600"} />
-                  {foodMode 
-                    ? (distributionMode === "FOOD" ? "Lunch / Meal Token Scanner" : "Refreshment & Snacks Token Scanner") 
-                    : "Event Attendance QR Scanner"}
+                  {foodMode ? "Lunch / Meal Token Scanner" : "Event Attendance QR Scanner"}
                 </h2>
                 <p className="text-xs text-slate-500 font-mono mt-0.5">
                   {foodMode 
-                    ? `Mode: ${distributionMode === "FOOD" ? "Lunch / Meals" : "Refreshments & Snacks"} — Point camera at participant's QR code` 
+                    ? "Point camera at participant's Food Token QR code to distribute lunch" 
                     : `Scan participant QR to verify attendance for: ${assignedMission?.name || "Assigned Competition"}`}
                 </p>
               </div>
-
-              {/* Food Distributor Mode: Toggle Food vs Refreshment */}
-              {foodMode && (
-                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-300">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDistributionMode("FOOD");
-                      setScanResult(null);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      distributionMode === "FOOD"
-                        ? "bg-amber-600 text-white shadow-sm"
-                        : "text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    <Utensils size={13} />
-                    <span>Lunch / Food</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDistributionMode("REFRESHMENT");
-                      setScanResult(null);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      distributionMode === "REFRESHMENT"
-                        ? "bg-amber-600 text-white shadow-sm"
-                        : "text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    <span>☕</span>
-                    <span>Refreshment</span>
-                  </button>
-                </div>
-              )}
 
               {/* Event Entry Mode: Locked to assigned event */}
               {!foodMode && (
@@ -369,9 +338,9 @@ export default function VolunteerDashboard() {
             <div className="mb-5">
               <CameraQRScanner
                 onScan={handleProcessScan}
-                title={foodMode ? (distributionMode === "FOOD" ? "Scan Lunch / Meal QR Code" : "Scan Refreshment QR Code") : "Scan Participant Attendance QR"}
+                title={foodMode ? "Scan Lunch / Meal QR Code" : "Scan Participant Attendance QR"}
                 themeColor={foodMode ? "#D97706" : "#2563EB"}
-                placeholder={foodMode ? `Point camera at participant's ${distributionMode === "FOOD" ? "Lunch" : "Refreshment"} QR code...` : "Point camera at participant's ID Badge QR..."}
+                placeholder={foodMode ? "Point camera at participant's Lunch Food Token QR code..." : "Point camera at participant's ID Badge QR..."}
                 autoStart={true}
               />
             </div>
@@ -382,7 +351,7 @@ export default function VolunteerDashboard() {
                 type="text"
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
-                placeholder={foodMode ? `Or enter Participant ID for ${distributionMode === "FOOD" ? "Lunch" : "Refreshment"} (e.g. INT26-0045)...` : "Or manually enter Participant ID (e.g. INT26-0045)..."}
+                placeholder={foodMode ? "Or enter Participant ID for Lunch (e.g. INT26-0045)..." : "Or manually enter Participant ID (e.g. INT26-0045)..."}
                 required
                 className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-500 font-mono text-xs"
               />
@@ -392,7 +361,7 @@ export default function VolunteerDashboard() {
                   foodMode ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/30" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/30"
                 }`}
               >
-                {foodMode ? (distributionMode === "FOOD" ? "Redeem Lunch" : "Redeem Refreshment") : "Verify Attendance"}
+                {foodMode ? "Redeem Lunch" : "Verify Attendance"}
               </button>
             </form>
           </div>
@@ -413,7 +382,7 @@ export default function VolunteerDashboard() {
                 <div className="w-full">
                   <h4 className="font-heading font-extrabold mb-1 uppercase tracking-wider text-sm">
                     {scanResult.success 
-                      ? (foodMode ? "Meal / Refreshment Token Redeemed" : "Event Attendance Verified & Logged") 
+                      ? (foodMode ? "Lunch / Meal Token Redeemed" : "Event Attendance Verified & Logged") 
                       : (foodMode ? "Token Redemption Denied / Already Claimed" : "Event Attendance Check-In Denied")}
                   </h4>
                   <p className="leading-relaxed mb-2 font-medium font-sans text-xs">{scanResult.message}</p>
@@ -495,8 +464,8 @@ export default function VolunteerDashboard() {
             {foodMode && (
               claimedFoodTokensList.length === 0 ? (
                 <div className="text-center text-slate-500 italic text-xs py-8 font-mono space-y-1">
-                  <p>No {distributionMode === "FOOD" ? "meal" : "refreshment"} tokens claimed yet.</p>
-                  <p className="text-[10px]">Scan participant {distributionMode === "FOOD" ? "Food" : "Refreshment"} QR codes to distribute.</p>
+                  <p>No meal tokens claimed yet.</p>
+                  <p className="text-[10px]">Scan participant Food QR codes to distribute lunch.</p>
                 </div>
               ) : (
                 <div className="space-y-2">

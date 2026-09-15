@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
   User, Cpu, Shield, Award, Calendar, RefreshCw, LogOut, CheckCircle2, 
-  AlertCircle, Download, QrCode, Sparkles, Compass, Lock, Users, PlusCircle, UserPlus, Check, X, Search, Utensils, Trophy, Eye, Coffee, Store, MapPin, Receipt, BookOpen
+  AlertCircle, Download, QrCode, Sparkles, Compass, Lock, Users, PlusCircle, UserPlus, Check, X, Search, Utensils, Trophy, Eye, MapPin, Receipt, BookOpen
 } from "lucide-react";
 import { 
-  mockDB, User as DBUser, Mission, Certificate, Team, TeamJoinRequest, FoodToken, Score, Symposium, College,
-  RefreshmentToken, RefreshmentStall, RefreshmentTransaction
+  mockDB, User as DBUser, Mission, Certificate, Team, TeamJoinRequest, FoodToken, Score, Symposium, College
 } from "@/lib/mock-db";
 import { pdfHelper } from "@/lib/pdf-helper";
 import { validateFullName, validateEmail, validateDepartment, validateCollege } from "@/lib/validation";
@@ -26,10 +25,6 @@ export default function StudentDashboard() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [joinRequests, setJoinRequests] = useState<TeamJoinRequest[]>([]);
   const [foodToken, setFoodToken] = useState<FoodToken | null>(null);
-  const [refreshmentToken, setRefreshmentToken] = useState<RefreshmentToken | null>(null);
-  const [refreshmentStalls, setRefreshmentStalls] = useState<RefreshmentStall[]>([]);
-  const [refreshmentHistory, setRefreshmentHistory] = useState<RefreshmentTransaction[]>([]);
-  const [showRefreshmentQRModal, setShowRefreshmentQRModal] = useState(false);
   const [scores, setScores] = useState<Score[]>([]);
   const [activeTab, setActiveTab] = useState("passport");
   const [resubmitTxId, setResubmitTxId] = useState("");
@@ -88,19 +83,6 @@ export default function StudentDashboard() {
     else if (curr.paymentStatus === "Verified") {
       setFoodToken(mockDB.generateFoodToken(curr));
     }
-
-    // Refreshment Token & Stalls lookup
-    if (curr.paymentStatus === "Verified") {
-      const refTok = mockDB.getRefreshmentTokenForParticipant(curr.participantId || curr.id, activeSym.id);
-      setRefreshmentToken(refTok);
-    }
-    const allStalls = mockDB.getRefreshmentStalls(activeSym.id);
-    setRefreshmentStalls(allStalls.filter(s => s.status === "ACTIVE"));
-    const allRefTxns = mockDB.getRefreshmentTransactions(activeSym.id);
-    const myRefTxns = allRefTxns.filter(
-      t => t.participantId === (curr.participantId || curr.id) || t.participantId === curr.id
-    );
-    setRefreshmentHistory(myRefTxns);
 
     if (curr.isFirstLogin === true) {
       setShowFirstLoginModal(true);
@@ -526,7 +508,6 @@ export default function StudentDashboard() {
                 { id: "event_registration", label: `Events (${userMissions.length}/${maxEvents})`, fullLabel: `Event Registration (${userMissions.length}/${maxEvents})`, icon: <Compass size={14} /> },
                 { id: "teams", label: `Teams (${myTeams.length})`, fullLabel: `My Teams (${myTeams.length})`, icon: <Users size={14} /> },
                 { id: "food_token", label: "Food Token", fullLabel: "Food Token (Lunch)", icon: <Utensils size={14} /> },
-                { id: "refreshment_token", label: "Refreshment Token", fullLabel: "Refreshment Token", icon: <Coffee size={14} /> },
                 ...(symposium?.resultsPublished ? [{ id: "results", label: "Results", fullLabel: "My Results", icon: <Trophy size={14} /> }] : []),
                 ...(settings?.feedbackEnabled ? [{ id: "feedback", label: "Feedback", fullLabel: "Submit Feedback", icon: <Sparkles size={14} /> }] : [])
               ].map(tab => (
@@ -1382,60 +1363,7 @@ export default function StudentDashboard() {
             </div>
           )}
 
-          {/* TAB: Refreshment Token */}
-          {activeTab === "refreshment_token" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-heading font-bold text-slate-900 flex items-center gap-2">
-                    <Coffee className="text-amber-600" size={18} /> Refreshment Token & Hospitality
-                  </h3>
-                  <p className="text-xs text-slate-600 font-sans">
-                    Present this official Refreshment Token QR Code to the Organizers at the Refreshment Desk to claim your complimentary refreshments.
-                  </p>
-                </div>
-              </div>
 
-              {user.paymentStatus !== "Verified" ? (
-                <div className="p-8 rounded-3xl bg-amber-50 border border-amber-200 text-center text-orange-600 text-xs font-mono shadow-xl space-y-2">
-                  <Lock className="mx-auto text-orange-500" size={24} />
-                  <h4 className="font-bold text-amber-900">REFRESHMENT TOKEN LOCKED</h4>
-                  <p className="text-orange-600/80 font-sans">
-                    Your refreshment voucher will be instantly unlocked once offline registration payment is verified at the Payment Desk.
-                  </p>
-                </div>
-              ) : (
-                <div className="max-w-md mx-auto bg-gradient-to-br from-amber-900 via-orange-950 to-amber-950 text-white rounded-3xl p-6 shadow-2xl border border-amber-500/40 relative overflow-hidden">
-                  <div className="flex justify-between items-center border-b border-amber-500/30 pb-4 mb-4">
-                    <div>
-                      <span className="text-[9px] uppercase tracking-widest font-mono text-amber-300 font-bold">OFFICIAL REFRESHMENT VOUCHER</span>
-                      <h4 className="text-lg font-heading font-black text-white">{symposium?.name || "INTEGRA"} REFRESHMENT</h4>
-                    </div>
-                    <span className={`text-[10px] font-mono font-black px-3 py-1 rounded-full uppercase tracking-wider ${refreshmentToken?.status === "USED" || refreshmentToken?.status === "REDEEMED" || (refreshmentToken?.remainingAmount !== undefined && refreshmentToken?.remainingAmount === 0) ? "bg-red-500 text-white" : "bg-amber-400 text-slate-950"}`}>
-                      {refreshmentToken?.status === "USED" || refreshmentToken?.status === "REDEEMED" || (refreshmentToken?.remainingAmount !== undefined && refreshmentToken?.remainingAmount === 0) ? "REDEEMED" : "ACTIVE"}
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50 text-slate-900 font-bold rounded-2xl p-5 flex flex-col items-center text-center space-y-3 border border-amber-500/30 shadow-inner">
-                    <div className="w-44 h-44 bg-white border border-slate-200 rounded-2xl p-2 flex items-center justify-center shadow-md">
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(JSON.stringify({ symposiumId: symposium?.id || "integra-2026", participantId: user.participantId || user.id, tokenId: `REFRESHMENT_${user.participantId || user.id}`, type: "REFRESHMENT" }))}`}
-                        alt="Refreshment QR Code"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div className="text-xs font-mono pt-1">
-                      <div className="text-blue-900 font-extrabold text-sm">{user.name} ({user.participantId})</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 text-[10px] text-amber-200 font-mono text-center">
-                    Single-use token. Food volunteers scan at refreshment desk.
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* TAB 6: Results */}
           {activeTab === "results" && symposium?.resultsPublished && (
@@ -1960,76 +1888,7 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* ── REFRESHMENT QR TOKEN MODAL ─────────────────────────────────────── */}
-      {showRefreshmentQRModal && refreshmentToken && user && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-purple-500/40 rounded-3xl max-w-sm w-full p-6 space-y-5 shadow-2xl font-sans text-center animate-scaleUp">
-            <div className="flex justify-between items-center border-b border-purple-200 pb-3">
-              <div className="text-left">
-                <span className="text-[9px] font-mono text-blue-700 uppercase tracking-widest font-bold">CAMPUS STALLS VOUCHER</span>
-                <h4 className="text-sm font-heading font-black text-slate-900">REFRESHMENT TOKEN QR</h4>
-              </div>
-              <button
-                onClick={() => setShowRefreshmentQRModal(false)}
-                className="text-slate-600 hover:text-slate-900 text-xs font-mono p-1"
-              >
-                ✕
-              </button>
-            </div>
 
-            {/* High-Contrast QR Badge */}
-            <div className="bg-slate-50 border border-purple-300 rounded-2xl p-5 flex flex-col items-center space-y-3 shadow-inner">
-              <div className="w-44 h-44 bg-white p-2.5 rounded-2xl flex items-center justify-center shadow-lg">
-                <div className="w-full h-full flex flex-col items-center justify-center p-2 text-slate-950 font-mono font-bold text-center">
-                  <div className="text-[10px] uppercase text-purple-700 font-extrabold mb-1">STALL VOUCHER QR</div>
-                  <div className="p-2 bg-slate-50 text-slate-900 font-bold rounded-xl border border-purple-400/40 text-[9px] break-all font-mono">
-                    {refreshmentToken.id}
-                  </div>
-                  <div className="text-[9px] text-slate-600 mt-1">₹{refreshmentToken.remainingAmount}.00 BAL</div>
-                </div>
-              </div>
-
-              <div className="text-center font-mono space-y-0.5">
-                <div className="text-xs font-black text-blue-700">{refreshmentToken.id}</div>
-                <div className="text-sm font-black text-slate-900">{user.name}</div>
-                <div className="text-[10px] text-slate-600">{user.participantId} • {user.college}</div>
-              </div>
-            </div>
-
-            {/* Live Balance Banner */}
-            <div className="bg-slate-50 border border-emerald-500/30 p-3 rounded-2xl font-mono text-xs flex justify-between items-center">
-              <span className="text-slate-600 text-[11px]">Available Balance:</span>
-              <span className="text-base font-black text-emerald-800 font-extrabold">₹{refreshmentToken.remainingAmount}.00</span>
-            </div>
-
-            <p className="text-[10px] text-slate-600 font-mono leading-relaxed">
-              Show this QR code to the volunteer at any campus refreshment stall. Partial claims allowed.
-            </p>
-
-            <div className="flex gap-2 font-mono text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  if (user && symposium) {
-                    pdfHelper.downloadRefreshmentToken(user, refreshmentToken, symposium);
-                  }
-                }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-slate-900 font-extrabold py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-purple-600/30 flex items-center justify-center gap-1.5"
-              >
-                <Download size={14} />
-                <span>Save PDF</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowRefreshmentQRModal(false)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

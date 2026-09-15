@@ -142,7 +142,11 @@ export async function POST(req: NextRequest) {
 
     <!-- Credentials Card -->
     <div class="auth-card">
-      <div class="auth-header">🔐 YOUR LOGIN DETAILS</div>
+      <div class="auth-header">🔐 YOUR PARTICIPANT CREDENTIALS</div>
+      <div class="cred-row">
+        <span class="cred-label">🆔 Participant ID:</span>
+        <span class="cred-val accent" style="font-size:15px;color:#38bdf8;font-weight:900;">${safePid}</span>
+      </div>
       <div class="cred-row">
         <span class="cred-label">👤 Username:</span>
         <span class="cred-val accent">${safeUsername}</span>
@@ -156,8 +160,18 @@ export async function POST(req: NextRequest) {
         <span class="cred-label">⏱️ Shift:</span>
         <span class="cred-val" style="color:#c084fc;">${safeShift}</span>
       </div>` : ""}
+      ${safeCollege ? `
       <div class="cred-row">
-        <span class="cred-label">🌐 Login:</span>
+        <span class="cred-label">🏛️ College:</span>
+        <span class="cred-val" style="color:#ffffff;">${safeCollege}</span>
+      </div>` : ""}
+      ${safeDept ? `
+      <div class="cred-row">
+        <span class="cred-label">📚 Department:</span>
+        <span class="cred-val" style="color:#ffffff;">${safeDept}${safeYear ? ` • ${safeYear}` : ""}</span>
+      </div>` : ""}
+      <div class="cred-row">
+        <span class="cred-label">🌐 Portal Login:</span>
         <span class="cred-val" style="color:#38bdf8;"><a href="${loginUrl}" style="color:#38bdf8;text-decoration:underline;">${loginUrl}</a></span>
       </div>
     </div>
@@ -207,11 +221,12 @@ Dear ${name},
 
 We’re excited to have you join us for an exciting journey of Technology • Innovation • Creativity • Talent, organized by the PG & Research Department of Computer Science, Don Bosco College (Co-Ed), Yelagiri Hills.
 
-🔐 YOUR LOGIN DETAILS
+🔐 YOUR PARTICIPANT CREDENTIALS
 
+🆔 Participant ID: ${participantId || safePid}
 👤 Username: ${loginUsername}
-🔑 Password: ${loginPassword}${shift ? `\n⏱️ Shift: ${shift}` : ""}
-🌐 Login: ${loginUrl}
+🔑 Password: ${loginPassword}${shift ? `\n⏱️ Shift: ${shift}` : ""}${college ? `\n🏛️ College: ${college}` : ""}${department ? `\n📚 Department: ${department}${year ? ` • ${year}` : ""}` : ""}
+🌐 Portal Login: ${loginUrl}
 
 🎯 Your Participant Portal gives you access to:
 🎪 Events & Schedule | 🎫 Hall Ticket | 🤖 AI Passport

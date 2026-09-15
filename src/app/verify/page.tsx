@@ -16,7 +16,7 @@ export default function CredentialVerificationPage() {
     mockDB.init();
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const queryId = params.get("id") || params.get("hash");
+      const queryId = params.get("pid") || params.get("participantId") || params.get("id") || params.get("hash");
       if (queryId) {
         setQuery(queryId);
         handleVerify(queryId);
@@ -25,7 +25,7 @@ export default function CredentialVerificationPage() {
     mockDB.syncFromCloud().then(() => {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
-        const queryId = params.get("id") || params.get("hash");
+        const queryId = params.get("pid") || params.get("participantId") || params.get("id") || params.get("hash");
         if (queryId) {
           handleVerify(queryId);
         }
@@ -41,6 +41,16 @@ export default function CredentialVerificationPage() {
       const parsed = JSON.parse(target);
       target = parsed.participantId || parsed.registrationId || parsed.id || parsed.email || target;
     } catch {}
+
+    if (target.includes("verify?") || target.includes("?pid=") || target.includes("?id=")) {
+      try {
+        const urlObj = new URL(target);
+        target = urlObj.searchParams.get("pid") || urlObj.searchParams.get("participantId") || urlObj.searchParams.get("id") || target;
+      } catch {
+        const match = target.match(/[?&](?:pid|participantId|id)=([^&]+)/);
+        if (match) target = decodeURIComponent(match[1]);
+      }
+    }
 
     const users = mockDB.getUsers();
     const found = users.find(u => 
