@@ -1237,52 +1237,85 @@ export const mockDB = {
       (u.role !== "student" || isMatchingSymposium(u.symposiumId, targetSym))
     );
     
-    // Deduplicate by email address so each person appears exactly once with all their merged roles
+    // Deduplicate by multi-key indexing so each person appears exactly once with all their merged roles and payment state
     const userMap = new Map<string, User>();
     for (const u of filtered) {
       const emailKey = (u.email || "").toLowerCase().trim();
       const pidKey = (u.participantId || "").toLowerCase().trim();
-      const key = emailKey || pidKey || u.id;
-      if (!key) continue;
+      const idKey = (u.id || "").toLowerCase().trim();
 
-      const existing = userMap.get(key);
+      const existing = (emailKey ? userMap.get(emailKey) : null) ||
+                       (pidKey ? userMap.get(pidKey) : null) ||
+                       (idKey ? userMap.get(idKey) : null);
+
+      const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
+                         (u.paymentStatus || "").toLowerCase() === "verified" ||
+                         (existing?.paymentStatus || "").toLowerCase() === "paid" ||
+                         (u.paymentStatus || "").toLowerCase() === "paid";
+      const paymentStatus = isVerified ? "Verified" : (u.paymentStatus || existing?.paymentStatus || "Pending");
+
       if (!existing) {
-        userMap.set(key, {
+        const created: User = {
           ...u,
+          paymentStatus,
           roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || "coordinator"]
-        });
+        };
+        if (emailKey) userMap.set(emailKey, created);
+        if (pidKey) userMap.set(pidKey, created);
+        if (idKey) userMap.set(idKey, created);
       } else {
         const mergedRoles = Array.from(new Set([
           ...(existing.roles || [existing.role]),
           ...(u.roles || [u.role])
         ]));
-        userMap.set(key, {
+        const merged: User = {
           ...existing,
           ...u,
           id: existing.id || u.id,
+          participantId: existing.participantId || u.participantId,
+          registrationId: existing.registrationId || u.registrationId,
           roles: mergedRoles,
           role: existing.role || u.role,
           department: u.department || existing.department,
           phone: u.phone || existing.phone,
-          password: u.password || existing.password
-        });
+          password: u.password || existing.password,
+          paymentStatus,
+          paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
+          registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
+          achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
+        };
+        if (emailKey) userMap.set(emailKey, merged);
+        if (pidKey) userMap.set(pidKey, merged);
+        if (idKey) userMap.set(idKey, merged);
       }
     }
-    return Array.from(userMap.values());
+    return Array.from(new Set(userMap.values()));
   },
 
   getAllUsersRaw: (): User[] => {
     const userMap = new Map<string, User>();
     for (const u of memoryStore.users) {
-      const key = (u.email || u.participantId || u.id || "").toLowerCase().trim();
-      if (!key) continue;
-      if (!userMap.has(key)) {
-        userMap.set(key, u);
+      const emailKey = (u.email || "").toLowerCase().trim();
+      const pidKey = (u.participantId || "").toLowerCase().trim();
+      const idKey = (u.id || "").toLowerCase().trim();
+
+      const existing = (emailKey ? userMap.get(emailKey) : null) ||
+                       (pidKey ? userMap.get(pidKey) : null) ||
+                       (idKey ? userMap.get(idKey) : null);
+
+      const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
+                         (u.paymentStatus || "").toLowerCase() === "verified" ||
+                         (existing?.paymentStatus || "").toLowerCase() === "paid" ||
+                         (u.paymentStatus || "").toLowerCase() === "paid";
+      const paymentStatus = isVerified ? "Verified" : (u.paymentStatus || existing?.paymentStatus || "Pending");
+
+      if (!existing) {
+        const created: User = { ...u, paymentStatus };
+        if (emailKey) userMap.set(emailKey, created);
+        if (pidKey) userMap.set(pidKey, created);
+        if (idKey) userMap.set(idKey, created);
       } else {
-        const existing = userMap.get(key)!;
-        const isVerified = existing.paymentStatus === "Verified" || u.paymentStatus === "Verified";
-        const paymentStatus = isVerified ? "Verified" : (u.paymentStatus || existing.paymentStatus || "Pending");
-        userMap.set(key, {
+        const merged: User = {
           ...existing,
           ...u,
           id: existing.id || u.id,
@@ -1292,10 +1325,13 @@ export const mockDB = {
           paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
           registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
           achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
-        });
+        };
+        if (emailKey) userMap.set(emailKey, merged);
+        if (pidKey) userMap.set(pidKey, merged);
+        if (idKey) userMap.set(idKey, merged);
       }
     }
-    return Array.from(userMap.values());
+    return Array.from(new Set(userMap.values()));
   },
 
   getCurrentUser: (): User | null => {
@@ -1554,12 +1590,15 @@ export const mockDB = {
 
   // ── 4. OFFLINE PAYMENT VERIFICATION ───────────────────────────────────────
   verifyPayment: async (userId: string, adminId: string = "Admin Desk", remarks: string = "Verified at Registration Desk", mode: "Cash" | "Bank Transfer" | "UPI Transfer" | "Other Offline Payment" = "Cash") => {
-    const student = memoryStore.users.find(u => u.id === userId || u.participantId === userId || u.registrationId === userId || (u.email && u.email.toLowerCase() === userId.toLowerCase()));
+    const student = memoryStore.users.find(u =>
+      (u.id && u.id === userId) ||
+      (u.participantId && u.participantId.toLowerCase() === userId.toLowerCase()) ||
+      (u.registrationId && u.registrationId.toLowerCase() === userId.toLowerCase()) ||
+      (u.email && u.email.toLowerCase() === userId.toLowerCase())
+    );
     if (!student) throw new Error("Participant not found.");
 
-    student.paymentStatus = "Verified";
-    delete (student as any).paymentRejectionReason;
-    student.paymentDetails = {
+    const paymentDetails = {
       txId: `OFFLINE-PAY-${Date.now()}`,
       date: new Date().toLocaleDateString("en-IN"),
       mode,
@@ -1567,7 +1606,53 @@ export const mockDB = {
       remarks
     };
 
+    student.paymentStatus = "Verified";
+    delete (student as any).paymentRejectionReason;
+    student.paymentDetails = paymentDetails;
     student.achievements = Array.from(new Set([...(student.achievements || []), "Payment Verified"]));
+
+    // Propagate verification to ALL matching user alias objects in memoryStore.users
+    const studentEmail = (student.email || "").toLowerCase().trim();
+    const studentPid = (student.participantId || "").toLowerCase().trim();
+    const studentId = (student.id || "").toLowerCase().trim();
+
+    for (const u of memoryStore.users) {
+      const uEmail = (u.email || "").toLowerCase().trim();
+      const uPid = (u.participantId || "").toLowerCase().trim();
+      const uId = (u.id || "").toLowerCase().trim();
+
+      const isMatch = (studentEmail && uEmail === studentEmail) ||
+                      (studentPid && uPid === studentPid) ||
+                      (studentId && uId === studentId);
+
+      if (isMatch) {
+        u.paymentStatus = "Verified";
+        u.paymentDetails = paymentDetails;
+        delete (u as any).paymentRejectionReason;
+        u.achievements = Array.from(new Set([...(u.achievements || []), "Payment Verified"]));
+      }
+    }
+
+    // If active session belongs to this student, update session user immediately
+    const curr = getSessionUser();
+    if (curr) {
+      const currEmail = (curr.email || "").toLowerCase().trim();
+      const currPid = (curr.participantId || "").toLowerCase().trim();
+      const currId = (curr.id || "").toLowerCase().trim();
+      if ((studentEmail && currEmail === studentEmail) || (studentPid && currPid === studentPid) || (studentId && currId === studentId)) {
+        setSessionUser({
+          ...curr,
+          ...student,
+          paymentStatus: "Verified",
+          paymentDetails
+        });
+      }
+    }
+
+    // Auto-generate Food Token immediately upon payment verification
+    try {
+      mockDB.generateFoodToken(student);
+    } catch {}
 
     mockDB.logActivity(adminId, "Administrator", "PAYMENT_VERIFIED", `Offline payment verified for ${student.name} (${student.participantId}) via ${mode}`);
     await firebaseService.saveParticipant(student as any);
@@ -2885,7 +2970,7 @@ export const mockDB = {
           }
         }
 
-        // 2. Users & Participants — Ensure ALL DEFAULT_USERS are preserved
+        // 2. Users & Participants — Ensure ALL DEFAULT_USERS are preserved with multi-key cross-indexing
         if (Array.isArray(data.users)) {
           const userMap = new Map<string, User>();
 
@@ -2893,29 +2978,55 @@ export const mockDB = {
             if (!u) return;
             const emailKey = (u.email || "").toLowerCase().trim();
             const pidKey = (u.participantId || "").toLowerCase().trim();
-            const key = emailKey || pidKey || u.id;
-            if (!key) return;
+            const idKey = (u.id || "").toLowerCase().trim();
 
-            const existing = userMap.get(key);
+            const existing = (emailKey ? userMap.get(emailKey) : null) ||
+                             (pidKey ? userMap.get(pidKey) : null) ||
+                             (idKey ? userMap.get(idKey) : null);
+
+            const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
+                               (u.paymentStatus || "").toLowerCase() === "verified" ||
+                               (existing?.paymentStatus || "").toLowerCase() === "paid" ||
+                               (u.paymentStatus || "").toLowerCase() === "paid";
+
+            const paymentStatus = isVerified
+              ? "Verified"
+              : (((u.paymentStatus || "").toLowerCase() === "rejected") || ((existing?.paymentStatus || "").toLowerCase() === "rejected"))
+                ? "Rejected"
+                : "Pending";
+
             if (!existing) {
-              userMap.set(key, {
+              const created: User = {
                 ...u,
+                paymentStatus,
                 roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || "coordinator"]
-              });
+              };
+              if (emailKey) userMap.set(emailKey, created);
+              if (pidKey) userMap.set(pidKey, created);
+              if (idKey) userMap.set(idKey, created);
             } else {
               const mergedRoles = Array.from(new Set([
                 ...(existing.roles || [existing.role]),
                 ...(u.roles || [u.role])
               ]));
-              userMap.set(key, {
+              const merged: User = {
                 ...existing,
                 ...u,
                 id: existing.id || u.id,
+                participantId: existing.participantId || u.participantId,
+                registrationId: existing.registrationId || u.registrationId,
                 roles: mergedRoles,
                 role: existing.role || u.role,
                 department: u.department || existing.department,
-                phone: u.phone || existing.phone
-              });
+                phone: u.phone || existing.phone,
+                paymentStatus,
+                paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
+                registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
+                achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
+              };
+              if (emailKey) userMap.set(emailKey, merged);
+              if (pidKey) userMap.set(pidKey, merged);
+              if (idKey) userMap.set(idKey, merged);
             }
           };
 
@@ -2937,17 +3048,29 @@ export const mockDB = {
             insertOrMergeUser(u);
           }
 
-          memoryStore.users = Array.from(userMap.values());
+          memoryStore.users = Array.from(new Set(userMap.values()));
           saveCloudSnapshotToLocalStorage();
 
           const curr = getSessionUser();
           if (curr) {
+            const cEmail = (curr.email || "").toLowerCase().trim();
+            const cPid = (curr.participantId || "").toLowerCase().trim();
+            const cId = (curr.id || "").toLowerCase().trim();
+
             const fresh = memoryStore.users.find(u =>
-              (curr.id && u.id === curr.id) ||
-              (curr.participantId && u.participantId && u.participantId === curr.participantId) ||
-              (curr.registrationId && u.registrationId && u.registrationId === curr.registrationId)
+              (cId && (u.id || "").toLowerCase() === cId) ||
+              (cPid && (u.participantId || "").toLowerCase() === cPid) ||
+              (cEmail && (u.email || "").toLowerCase() === cEmail) ||
+              (curr.registrationId && u.registrationId === curr.registrationId)
             );
-            if (fresh) setSessionUser({ ...curr, ...fresh });
+            if (fresh) {
+              setSessionUser({ ...curr, ...fresh });
+              if (fresh.paymentStatus === "Verified" && fresh.role === "student") {
+                try {
+                  mockDB.generateFoodToken(fresh);
+                } catch {}
+              }
+            }
           }
         }
 

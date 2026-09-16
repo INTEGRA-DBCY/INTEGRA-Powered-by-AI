@@ -98,33 +98,51 @@ export const firebaseService = {
       const coordAltList = await safeGetDocs(COORDINATORS_ALT);
       const staffList = await safeGetDocs(STAFF);
 
-      // Merge participants, volunteers, coordinators, and users intelligently
+      // Merge participants, volunteers, coordinators, and users intelligently with multi-key cross-referencing
       const userMap = new Map<string, any>();
       const mergeUserRecord = (u: any) => {
         if (!u) return;
-        const key = (u.email || u.participantId || u.id || "").toLowerCase().trim();
-        if (!key) return;
-        
-        if (!userMap.has(key)) {
-          userMap.set(key, u);
-        } else {
-          const existing = userMap.get(key);
-          const isVerified = existing.paymentStatus === "Verified" || u.paymentStatus === "Verified";
-          const paymentStatus = isVerified ? "Verified" : (u.paymentStatus || existing.paymentStatus || "Pending");
-          userMap.set(key, {
-            ...existing,
-            ...u,
-            id: existing.id || u.id,
-            participantId: existing.participantId || u.participantId,
-            registrationId: existing.registrationId || u.registrationId,
-            role: u.role || existing.role,
-            volunteerDuty: u.volunteerDuty || existing.volunteerDuty,
-            paymentStatus,
-            paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
-            registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
-            achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
-          });
-        }
+        const emailKey = (u.email || "").toLowerCase().trim();
+        const pidKey = (u.participantId || "").toLowerCase().trim();
+        const idKey = (u.id || "").toLowerCase().trim();
+
+        // Cross-match existing record by email, participantId, or id
+        const existing = (emailKey ? userMap.get(emailKey) : null) ||
+                         (pidKey ? userMap.get(pidKey) : null) ||
+                         (idKey ? userMap.get(idKey) : null);
+
+        const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
+                           (u.paymentStatus || "").toLowerCase() === "verified" ||
+                           (existing?.paymentStatus || "").toLowerCase() === "paid" ||
+                           (u.paymentStatus || "").toLowerCase() === "paid";
+
+        const paymentStatus = isVerified
+          ? "Verified"
+          : (((u.paymentStatus || "").toLowerCase() === "rejected") || ((existing?.paymentStatus || "").toLowerCase() === "rejected"))
+            ? "Rejected"
+            : "Pending";
+
+        const merged = existing ? {
+          ...existing,
+          ...u,
+          id: existing.id || u.id,
+          participantId: existing.participantId || u.participantId,
+          registrationId: existing.registrationId || u.registrationId,
+          role: u.role || existing.role,
+          volunteerDuty: u.volunteerDuty || existing.volunteerDuty,
+          paymentStatus,
+          paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
+          registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
+          achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
+        } : {
+          ...u,
+          paymentStatus
+        };
+
+        // Cross-index under all known identifiers
+        if (emailKey) userMap.set(emailKey, merged);
+        if (pidKey) userMap.set(pidKey, merged);
+        if (idKey) userMap.set(idKey, merged);
       };
 
       for (const u of userList) mergeUserRecord(u);
@@ -155,7 +173,7 @@ export const firebaseService = {
         if (!s) continue;
         mergeUserRecord(s);
       }
-      const mergedUsers = Array.from(userMap.values());
+      const mergedUsers = Array.from(new Set(userMap.values()));
 
       // 2. Pull events
       const events = await safeGetDocs(EVENTS);

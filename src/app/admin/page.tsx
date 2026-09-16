@@ -2132,11 +2132,20 @@ export default function AdminDashboard() {
     link.click();
   };
 
-  // Helper values
+  // Helper values & Case-Insensitive Payment Checks
+  const isVerifiedPayment = (s?: DBUser | null) => {
+    if (!s) return false;
+    const st = (s.paymentStatus || "").toLowerCase().trim();
+    return st === "verified" || st === "paid" || st === "approved" || st === "success";
+  };
+  const isRejectedPayment = (s?: DBUser | null) => {
+    return (s?.paymentStatus || "").toLowerCase().trim() === "rejected";
+  };
+
   const students = users.filter(u => u.role === "student");
-  const pendingStudents = students.filter(s => s.paymentStatus === "Pending");
-  const verifiedStudents = students.filter(s => s.paymentStatus === "Verified");
-  const rejectedStudents = students.filter(s => s.paymentStatus === "Rejected");
+  const pendingStudents = students.filter(s => !isVerifiedPayment(s) && !isRejectedPayment(s));
+  const verifiedStudents = students.filter(s => isVerifiedPayment(s));
+  const rejectedStudents = students.filter(s => isRejectedPayment(s));
   const uniqueColleges = Array.from(new Set(students.map(s => s.college).filter(Boolean)));
   const totalColleges = uniqueColleges.length;
 
@@ -2156,7 +2165,10 @@ export default function AdminDashboard() {
   });
 
   const filteredPaymentStudents = students.filter(s => {
-    const matchesStatus = paymentFilterStatus === "All" || s.paymentStatus === paymentFilterStatus;
+    const matchesStatus = paymentFilterStatus === "All" ||
+      (paymentFilterStatus === "Verified" && isVerifiedPayment(s)) ||
+      (paymentFilterStatus === "Rejected" && isRejectedPayment(s)) ||
+      (paymentFilterStatus === "Pending" && !isVerifiedPayment(s) && !isRejectedPayment(s));
     const matchesCollege = paymentCollegeFilter === "All" || s.college === paymentCollegeFilter;
     const q = paymentSearchQuery.trim().toLowerCase();
     const matchesQuery = !q || (
@@ -2177,8 +2189,8 @@ export default function AdminDashboard() {
   // Filtered Students Roster
   const filteredStudents = students.filter(s => {
     let matchesStatus = true;
-    if (studentFilterStatus === "Verified") matchesStatus = s.paymentStatus === "Verified";
-    else if (studentFilterStatus === "Pending") matchesStatus = s.paymentStatus === "Pending";
+    if (studentFilterStatus === "Verified") matchesStatus = isVerifiedPayment(s);
+    else if (studentFilterStatus === "Pending") matchesStatus = !isVerifiedPayment(s) && !isRejectedPayment(s);
     else if (studentFilterStatus === "CheckedIn") matchesStatus = !!s.checkInStatus?.checkedIn;
 
     const matchesCollege = studentCollegeFilter === "All" || s.college === studentCollegeFilter;
@@ -3263,9 +3275,9 @@ export default function AdminDashboard() {
                     <div 
                       key={student.id} 
                       className={`p-3.5 sm:p-4 rounded-2xl border transition-all text-xs shadow-xl ${
-                        student.paymentStatus === "Verified"
+                        isVerifiedPayment(student)
                           ? "bg-white border-2 border-emerald-200 shadow-sm"
-                          : student.paymentStatus === "Rejected"
+                          : isRejectedPayment(student)
                           ? "bg-white border-2 border-rose-200 shadow-sm"
                           : "bg-white border-2 border-orange-200 shadow-sm"
                       }`}
@@ -3277,18 +3289,13 @@ export default function AdminDashboard() {
                             <span className="text-[10px] font-mono text-blue-900 bg-blue-100 px-2.5 py-0.5 rounded-md border border-blue-300 font-bold">
                               {student.participantId || student.id}
                             </span>
-                            {student.registrationId && (
-                              <span className="text-[10px] font-mono text-slate-800 bg-slate-200 px-2.5 py-0.5 rounded-md border border-slate-300 font-bold">
-                                {student.registrationId}
-                              </span>
-                            )}
                             <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                              student.paymentStatus === "Verified" ? "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold" :
-                              student.paymentStatus === "Rejected" ? "bg-rose-100 text-rose-900 border border-rose-300 font-bold" :
+                              isVerifiedPayment(student) ? "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold" :
+                              isRejectedPayment(student) ? "bg-rose-100 text-rose-900 border border-rose-300 font-bold" :
                               "bg-orange-100 text-orange-900 border border-orange-300 font-bold"
                             }`}>
-                              {student.paymentStatus === "Verified" ? "✓ VERIFIED" :
-                               student.paymentStatus === "Rejected" ? "✕ REJECTED" :
+                              {isVerifiedPayment(student) ? "✓ VERIFIED" :
+                               isRejectedPayment(student) ? "✕ REJECTED" :
                                "⏳ PENDING"}
                             </span>
                           </div>
@@ -3309,7 +3316,7 @@ export default function AdminDashboard() {
                           </div>
 
                           {/* Verification Details if verified */}
-                          {student.paymentStatus === "Verified" && student.paymentDetails && (
+                          {isVerifiedPayment(student) && student.paymentDetails && (
                             <div className="pt-2 mt-1 border-t border-slate-200 flex items-center gap-3 text-[10px] font-mono text-emerald-800 font-extrabold flex-wrap">
                               <span>Mode: <strong className="text-slate-900 font-bold">{student.paymentDetails.mode || "Cash"}</strong></span>
                               <span>Desk: <strong className="text-slate-900 font-bold">{student.paymentDetails.verifiedBy}</strong></span>
@@ -3321,7 +3328,7 @@ export default function AdminDashboard() {
                           )}
 
                           {/* Rejection Details if rejected */}
-                          {student.paymentStatus === "Rejected" && student.paymentDetails && (
+                          {isRejectedPayment(student) && student.paymentDetails && (
                             <div className="pt-2 mt-1 border-t border-slate-200 text-[10px] font-mono text-rose-900 font-extrabold">
                               Reason: <strong className="text-slate-900 font-bold">{student.paymentDetails.remarks || "Fee not received"}</strong> (by {student.paymentDetails.verifiedBy})
                             </div>
@@ -3330,7 +3337,7 @@ export default function AdminDashboard() {
                         
                         {/* Action buttons based on status */}
                         <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-                          {student.paymentStatus === "Pending" && (
+                          {!isVerifiedPayment(student) && !isRejectedPayment(student) && (
                             <>
                               <button
                                 onClick={() => handleOpenVerifyModal(student)}
@@ -3347,7 +3354,7 @@ export default function AdminDashboard() {
                             </>
                           )}
 
-                          {student.paymentStatus === "Verified" && (
+                          {isVerifiedPayment(student) && (
                             <button
                               onClick={() => handleOpenVerifyModal(student)}
                               className="bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold border border-slate-300 px-3 py-1.5 rounded-xl transition-all cursor-pointer font-mono text-[10px] font-bold"
@@ -3357,7 +3364,7 @@ export default function AdminDashboard() {
                             </button>
                           )}
 
-                          {student.paymentStatus === "Rejected" && (
+                          {isRejectedPayment(student) && (
                             <button
                               onClick={() => handleOpenVerifyModal(student)}
                               className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-900 text-emerald-700 border border-emerald-500/40 px-3 py-1.5 rounded-xl transition-all cursor-pointer font-mono text-[10px] font-bold"

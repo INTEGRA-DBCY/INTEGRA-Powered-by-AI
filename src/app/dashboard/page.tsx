@@ -66,35 +66,58 @@ export default function StudentDashboard() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordChangeError, setPasswordChangeError] = useState("");
 
+  const isPaymentVerified = (u?: DBUser | null): boolean => {
+    if (!u) return false;
+    const s = (u.paymentStatus || "").toLowerCase().trim();
+    return s === "verified" || s === "paid" || s === "approved" || s === "success";
+  };
+
   const loadDashboardData = (curr: DBUser) => {
-    setUser(curr);
+    // Cross-check memoryStore users for latest payment status
+    const allUsers = mockDB.getUsers();
+    const cEmail = (curr.email || "").toLowerCase().trim();
+    const cPid = (curr.participantId || "").toLowerCase().trim();
+    const cId = (curr.id || "").toLowerCase().trim();
+    const dbMatch = allUsers.find(u =>
+      (cId && (u.id || "").toLowerCase() === cId) ||
+      (cPid && (u.participantId || "").toLowerCase() === cPid) ||
+      (cEmail && (u.email || "").toLowerCase() === cEmail) ||
+      (curr.registrationId && u.registrationId === curr.registrationId)
+    );
+    const resolvedUser: DBUser = dbMatch ? { ...curr, ...dbMatch } : curr;
+    if (isPaymentVerified(dbMatch) && !isPaymentVerified(curr)) {
+      resolvedUser.paymentStatus = "Verified";
+      mockDB.setCurrentUser(resolvedUser);
+    }
+
+    setUser(resolvedUser);
     const activeSym = mockDB.getActiveSymposium();
     setSymposium(activeSym);
     setMissions(mockDB.getMissions());
     setColleges(mockDB.getColleges());
     setSettings(mockDB.getSettings());
     setTeams(mockDB.getTeams());
-    setJoinRequests(mockDB.getJoinRequests(curr.participantId || curr.id));
+    setJoinRequests(mockDB.getJoinRequests(resolvedUser.participantId || resolvedUser.id));
     
     // Food Token lookup or generation if verified
     const tokens = mockDB.getFoodTokens();
-    const myToken = tokens.find(t => t.participantId === (curr.participantId || curr.id));
+    const myToken = tokens.find(t => t.participantId === (resolvedUser.participantId || resolvedUser.id));
     if (myToken) setFoodToken(myToken);
-    else if (curr.paymentStatus === "Verified") {
-      setFoodToken(mockDB.generateFoodToken(curr));
+    else if (isPaymentVerified(resolvedUser)) {
+      setFoodToken(mockDB.generateFoodToken(resolvedUser));
     }
 
-    if (curr.isFirstLogin === true) {
+    if (resolvedUser.isFirstLogin === true) {
       setShowFirstLoginModal(true);
     }
     
     const allCerts = mockDB.getCertificates();
-    const studentCerts = allCerts.filter(c => c.recipientId === curr.id || c.recipientId === curr.registrationId || c.recipientId === curr.participantId);
+    const studentCerts = allCerts.filter(c => c.recipientId === resolvedUser.id || c.recipientId === resolvedUser.registrationId || c.recipientId === resolvedUser.participantId);
     setCerts(studentCerts);
 
     // Fetch scores if published
     const allScores = mockDB.getScores();
-    setScores(allScores.filter(s => s.studentId === curr.id || s.studentId === curr.participantId));
+    setScores(allScores.filter(s => s.studentId === resolvedUser.id || s.studentId === resolvedUser.participantId));
   };
 
   useEffect(() => {
@@ -108,10 +131,25 @@ export default function StudentDashboard() {
     loadDashboardData(curr);
 
     // Real-time Cloud Sync
-    mockDB.syncFromCloud().then(() => {
+    mockDB.syncFromCloud(true).then(() => {
       const freshUser = mockDB.getCurrentUser() || curr;
       loadDashboardData(freshUser);
     });
+
+    // Auto-poll cloud every 8 seconds while payment is pending so user screen unlocks automatically
+    const pollInterval = setInterval(() => {
+      const activeUser = mockDB.getCurrentUser();
+      if (activeUser && !isPaymentVerified(activeUser)) {
+        mockDB.syncFromCloud(true).then(() => {
+          const freshUser = mockDB.getCurrentUser();
+          if (freshUser) {
+            loadDashboardData(freshUser);
+          }
+        });
+      }
+    }, 8000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   useEffect(() => {
@@ -238,18 +276,17 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     mockDB.init();
     const curr = mockDB.getCurrentUser();
     if (curr) {
       loadDashboardData(curr);
     }
-    mockDB.syncFromCloud().then(() => {
-      const freshUser = mockDB.getCurrentUser() || curr;
-      if (freshUser) {
-        loadDashboardData(freshUser);
-      }
-    });
+    await mockDB.syncFromCloud(true);
+    const freshUser = mockDB.getCurrentUser() || curr;
+    if (freshUser) {
+      loadDashboardData(freshUser);
+    }
   };
 
   const handleDemoVerify = () => {
@@ -288,17 +325,28 @@ export default function StudentDashboard() {
     pdfHelper.downloadCertificate(cert);
   };
 
-  const handleRegisterIndividual = (missionId: string) => {
+  const handleRegisterIndividual = async (missionId: string) => {
     setActionError("");
     if (!user) return;
-    if (user.paymentStatus !== "Verified") {
-      setActionError("Your payment must be verified before registering for events.");
+
+    let activeUser = user;
+    if (!isPaymentVerified(activeUser)) {
+      await mockDB.syncFromCloud(true);
+      const fresh = mockDB.getCurrentUser();
+      if (fresh) {
+        activeUser = fresh;
+        loadDashboardData(fresh);
+      }
+    }
+
+    if (!isPaymentVerified(activeUser)) {
+      setActionError("Your offline registration payment must be verified by the Registration Desk before registering for events.");
       return;
     }
 
     try {
-      mockDB.registerForEvent(user.id, missionId);
-      handleRefresh();
+      await mockDB.registerForEvent(activeUser.id, missionId);
+      await handleRefresh();
       alert("Successfully registered for individual event!");
     } catch (err: any) {
       setActionError(err.message || "Could not register for event.");
@@ -313,16 +361,31 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleCreateTeamSubmit = (e: React.FormEvent) => {
+  const handleCreateTeamSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionError("");
     if (!user || !createTeamModalEvent || !teamNameInput.trim()) return;
 
+    let activeUser = user;
+    if (!isPaymentVerified(activeUser)) {
+      await mockDB.syncFromCloud(true);
+      const fresh = mockDB.getCurrentUser();
+      if (fresh) {
+        activeUser = fresh;
+        loadDashboardData(fresh);
+      }
+    }
+
+    if (!isPaymentVerified(activeUser)) {
+      setActionError("Your offline registration payment must be verified by the Registration Desk before creating a team.");
+      return;
+    }
+
     try {
-      mockDB.createTeam(createTeamModalEvent.id, teamNameInput.trim(), user.participantId || user.id);
+      mockDB.createTeam(createTeamModalEvent.id, teamNameInput.trim(), activeUser.participantId || activeUser.id);
       setCreateTeamModalEvent(null);
       setTeamNameInput("");
-      handleRefresh();
+      await handleRefresh();
       alert("Team created successfully! You are registered as Team Leader.");
     } catch (err: any) {
       setActionError(err.message || "Failed to create team.");
@@ -345,16 +408,31 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleJoinTeamSubmit = (e: React.FormEvent) => {
+  const handleJoinTeamSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionError("");
     if (!user || !joinTeamModalEvent || !joinTargetInput.trim()) return;
 
+    let activeUser = user;
+    if (!isPaymentVerified(activeUser)) {
+      await mockDB.syncFromCloud(true);
+      const fresh = mockDB.getCurrentUser();
+      if (fresh) {
+        activeUser = fresh;
+        loadDashboardData(fresh);
+      }
+    }
+
+    if (!isPaymentVerified(activeUser)) {
+      setActionError("Your offline registration payment must be verified by the Registration Desk before joining a team.");
+      return;
+    }
+
     try {
-      mockDB.joinTeam(joinTargetInput.trim(), joinTeamModalEvent.id, user.participantId || user.id);
+      mockDB.joinTeam(joinTargetInput.trim(), joinTeamModalEvent.id, activeUser.participantId || activeUser.id);
       setJoinTeamModalEvent(null);
       setJoinTargetInput("");
-      handleRefresh();
+      await handleRefresh();
       alert("Join request sent to team leader!");
     } catch (err: any) {
       setActionError(err.message || "Failed to join team.");
@@ -506,8 +584,7 @@ export default function StudentDashboard() {
             </div>
             <h2 className="text-sm sm:text-base font-heading font-black text-slate-900 leading-tight">{user.name}</h2>
             <div className="flex flex-col gap-0.5 mt-1 font-mono text-[9.5px] sm:text-[10px]">
-              <span className="text-blue-900 font-extrabold">ID: {user.participantId || user.id}</span>
-              <span className="text-slate-600 font-medium truncate max-w-[200px]">REG: {user.registrationId}</span>
+              <span className="text-blue-900 font-extrabold">Participant ID: {user.participantId || user.id}</span>
             </div>
           </div>
 
@@ -546,11 +623,11 @@ export default function StudentDashboard() {
                 PARTICIPANT BRIEF
               </span>
               <span className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                user.paymentStatus === "Verified" 
+                isPaymentVerified(user) 
                   ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
                   : "bg-amber-100 text-amber-900 border border-amber-300"
               }`}>
-                {user.paymentStatus === "Verified" ? "VERIFIED" : "PENDING"}
+                {isPaymentVerified(user) ? "VERIFIED" : "PENDING"}
               </span>
             </div>
             
@@ -603,23 +680,32 @@ export default function StudentDashboard() {
         <div className="flex-1 space-y-5 sm:space-y-6 min-w-0">
           
           {/* Payment Status Banners - High Contrast & Fully Visible */}
-          {user.paymentStatus === "Pending" ? (
+          {!isPaymentVerified(user) && user.paymentStatus !== "Rejected" ? (
             <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-amber-400 bg-amber-50 relative overflow-hidden shadow-xl">
               <div className="flex gap-3 sm:gap-4 items-start">
                 <div className="p-2 rounded-xl bg-amber-200/80 border border-amber-300 text-amber-800 shrink-0 mt-0.5 shadow-xs">
                   <AlertCircle size={22} className="text-amber-800" />
                 </div>
-                <div className="text-xs space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-heading font-black text-amber-950 text-sm uppercase tracking-wider">
-                      OFFLINE PAYMENT PENDING
-                    </h3>
-                    <span className="text-[10px] font-mono font-bold bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded-full border border-amber-300">
-                      ACTION REQUIRED AT REGISTRATION DESK
-                    </span>
+                <div className="text-xs space-y-1.5 flex-1">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-heading font-black text-amber-950 text-sm uppercase tracking-wider">
+                        OFFLINE PAYMENT PENDING
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded-full border border-amber-300">
+                        ACTION REQUIRED AT REGISTRATION DESK
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleRefresh}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-mono text-[10px] font-bold px-3 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                    >
+                      <RefreshCw size={11} />
+                      <span>Check Verification Status</span>
+                    </button>
                   </div>
                   <p className="text-amber-950 font-medium leading-relaxed font-sans text-xs">
-                    Your Participant ID is <strong className="text-amber-950 font-black font-mono bg-amber-200/90 px-1.5 py-0.5 rounded border border-amber-300 select-all">{user.participantId || user.id}</strong> (Reg No: <strong className="text-amber-950 font-black font-mono bg-amber-200/90 px-1.5 py-0.5 rounded border border-amber-300 select-all">{user.registrationId}</strong>). Please pay the registration fee (₹{symposium?.regFee ?? 150}) at the Registration Desk to verify your entry. Once verified, Event Registrations, Team Invitations, Hall Ticket, AI Passport, and Food Token will be unlocked.
+                    Your Participant ID is <strong className="text-amber-950 font-black font-mono bg-amber-200/90 px-1.5 py-0.5 rounded border border-amber-300 select-all">{user.participantId || user.id}</strong>. Please pay the registration fee (₹{symposium?.regFee ?? 150}) at the Registration Desk to verify your entry. Once verified, Event Registrations, Team Invitations, Hall Ticket, AI Passport, and Food Token will be unlocked automatically.
                   </p>
                 </div>
               </div>
@@ -1158,7 +1244,7 @@ export default function StudentDashboard() {
                               Drop Event
                             </button>
                           </div>
-                        ) : user.paymentStatus !== "Verified" ? (
+                        ) : !isPaymentVerified(user) ? (
                           <div className="w-full bg-slate-100 border border-slate-200 text-slate-700 font-semibold font-mono text-[10px] py-2 rounded-xl text-center font-semibold">
                             🔒 REQUIRES VERIFIED PAYMENT
                           </div>
@@ -1348,7 +1434,7 @@ export default function StudentDashboard() {
                 <p className="text-xs text-slate-600 font-sans">Present this QR code at the dining hall entrance to claim your symposium lunch.</p>
               </div>
 
-              {user.paymentStatus !== "Verified" ? (
+              {!isPaymentVerified(user) ? (
                 <div className="p-8 rounded-3xl bg-amber-50 border border-amber-200 border border-amber-500/40 text-center text-orange-600 text-xs font-mono shadow-xl">
                   🔒 Food Token is locked pending offline payment verification at the Registration Desk.
                 </div>
@@ -1449,7 +1535,7 @@ export default function StudentDashboard() {
                     <h4 className="text-base font-heading font-black text-white">{symposium?.name || "INTEGRA"} AI PASSPORT</h4>
                   </div>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    {user.paymentStatus === "Verified" ? "VERIFIED" : "PENDING"}
+                    {isPaymentVerified(user) ? "VERIFIED" : "PENDING"}
                   </span>
                 </div>
 
