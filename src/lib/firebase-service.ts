@@ -328,14 +328,32 @@ export const firebaseService = {
   },
 
   saveParticipant: async (p: any) => {
-    if (!isFirebaseConfigured || !db || !p?.id) return;
+    if (!p?.id) return;
     try {
-      const clean = cleanDataForFirestore(p);
-      await setDoc(doc(db, USERS, String(p.id)), clean, { merge: true });
-      await setDoc(doc(db, PARTICIPANTS, String(p.id)), clean, { merge: true });
-      if (p.participantId && p.participantId !== p.id) {
-        await setDoc(doc(db, USERS, String(p.participantId)), clean, { merge: true });
-        await setDoc(doc(db, PARTICIPANTS, String(p.participantId)), clean, { merge: true });
+      if (typeof window !== "undefined" && Array.isArray(p.registeredEvents)) {
+        try {
+          await fetch("/api/user/save-events", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studentId: p.id,
+              participantId: p.participantId,
+              registeredEvents: p.registeredEvents
+            })
+          });
+        } catch (serverErr) {
+          console.warn("API save-events fallback:", serverErr);
+        }
+      }
+
+      if (isFirebaseConfigured && db) {
+        const clean = cleanDataForFirestore(p);
+        await setDoc(doc(db, USERS, String(p.id)), clean, { merge: true });
+        await setDoc(doc(db, PARTICIPANTS, String(p.id)), clean, { merge: true });
+        if (p.participantId && p.participantId !== p.id) {
+          await setDoc(doc(db, USERS, String(p.participantId)), clean, { merge: true });
+          await setDoc(doc(db, PARTICIPANTS, String(p.participantId)), clean, { merge: true });
+        }
       }
     } catch (e) {
       console.error("Error saving participant to Firebase:", e);

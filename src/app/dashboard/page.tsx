@@ -87,7 +87,11 @@ export default function StudentDashboard() {
     const dbMatch = matchingUsers[0] || null;
 
     const isVerified = isPaymentVerified(curr) || matchingUsers.some(u => isPaymentVerified(u));
-    const resolvedUser: DBUser = dbMatch ? { ...curr, ...dbMatch } : curr;
+    const mergedEvents = Array.from(new Set([
+      ...(curr.registeredEvents || []),
+      ...(dbMatch?.registeredEvents || [])
+    ]));
+    const resolvedUser: DBUser = dbMatch ? { ...curr, ...dbMatch, registeredEvents: mergedEvents } : curr;
     if (isVerified) {
       resolvedUser.paymentStatus = "Verified";
       if (!resolvedUser.paymentDetails && (curr.paymentDetails || dbMatch?.paymentDetails)) {
@@ -143,12 +147,13 @@ export default function StudentDashboard() {
     }
     loadDashboardData(curr);
 
-    // Real-time Cloud Sync & Status Check
-    mockDB.checkPaymentStatusAsync(curr.participantId || curr.id).then(() => {
-      mockDB.syncFromCloud(true).then(() => {
-        const freshUser = mockDB.getCurrentUser() || curr;
-        loadDashboardData(freshUser);
-      });
+    // Real-time Cloud Sync & Status Check concurrently
+    Promise.allSettled([
+      mockDB.syncFromCloud(true),
+      mockDB.checkPaymentStatusAsync(curr.participantId || curr.id)
+    ]).then(() => {
+      const freshUser = mockDB.getCurrentUser() || curr;
+      loadDashboardData(freshUser);
     });
 
     // Auto-poll cloud every 6 seconds while payment is pending so user screen unlocks automatically

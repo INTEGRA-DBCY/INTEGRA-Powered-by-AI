@@ -988,7 +988,7 @@ interface CloudDatabaseStore {
 
 const memoryStore: CloudDatabaseStore = {
   users: [...DEFAULT_USERS],
-  missions: [],
+  missions: [...DEFAULT_MISSIONS],
   teams: [],
   joinRequests: [],
   stalls: [...DEFAULT_REFRESHMENT_STALLS],
@@ -1752,14 +1752,24 @@ export const mockDB = {
     const targetSym = symposiumId || mockDB.getActiveSymposiumId();
     const deletedIds = memoryStore.deletedIds;
 
-    const list = (memoryStore.missions || []).filter(m =>
+    let source = memoryStore.missions;
+    if (!source || source.length === 0) {
+      source = [...DEFAULT_MISSIONS];
+      memoryStore.missions = [...DEFAULT_MISSIONS];
+    }
+
+    const list = source.filter(m =>
       (!m.symposiumId || isMatchingSymposium(m.symposiumId, targetSym)) &&
       !deletedIds.has(m.id) &&
       !deletedIds.has((m.name || "").trim().toLowerCase())
     );
 
+    const finalMissions = list.length > 0 ? list : source.filter(m =>
+      !deletedIds.has(m.id) && !deletedIds.has((m.name || "").trim().toLowerCase())
+    );
+
     const nameMap = new Map<string, Mission>();
-    for (const m of list) {
+    for (const m of (finalMissions.length > 0 ? finalMissions : DEFAULT_MISSIONS)) {
       const normKey = (m.name || "").trim().toLowerCase();
       if (!normKey) continue;
       nameMap.set(normKey, m);
@@ -1981,6 +1991,21 @@ export const mockDB = {
 
     user.registeredEvents = [...enrolled, missionId];
     mockDB.updateUser(user);
+    if (typeof window !== "undefined") {
+      try {
+        await fetch("/api/user/save-events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId: user.id,
+            participantId: user.participantId,
+            registeredEvents: user.registeredEvents
+          })
+        });
+      } catch (saveErr) {
+        console.warn("Cloud save-events error:", saveErr);
+      }
+    }
     mockDB.logActivity(user.id, user.name, "EVENT_ENROLLED", `Enrolled in event: ${mission.name} (${mission.slot || "Slot 1"})`);
     return user;
   },
@@ -1991,6 +2016,21 @@ export const mockDB = {
 
     user.registeredEvents = (user.registeredEvents || []).filter(id => id !== missionId);
     mockDB.updateUser(user);
+    if (typeof window !== "undefined") {
+      try {
+        await fetch("/api/user/save-events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId: user.id,
+            participantId: user.participantId,
+            registeredEvents: user.registeredEvents
+          })
+        });
+      } catch (saveErr) {
+        console.warn("Cloud save-events error:", saveErr);
+      }
+    }
     mockDB.logActivity(user.id, user.name, "EVENT_UNENROLLED", `Unenrolled from event ID: ${missionId}`);
     return user;
   },
@@ -3149,7 +3189,11 @@ export const mockDB = {
               (curr.registrationId && u.registrationId === curr.registrationId)
             );
             if (fresh) {
-              setSessionUser({ ...curr, ...fresh });
+              const mergedEvents = Array.from(new Set([
+                ...(curr.registeredEvents || []),
+                ...(fresh.registeredEvents || [])
+              ]));
+              setSessionUser({ ...curr, ...fresh, registeredEvents: mergedEvents });
               if (fresh.paymentStatus === "Verified" && fresh.role === "student") {
                 try {
                   mockDB.generateFoodToken(fresh);
@@ -3173,6 +3217,8 @@ export const mockDB = {
             });
           }
           memoryStore.missions = validEvents;
+        } else if (!memoryStore.missions || memoryStore.missions.length === 0) {
+          memoryStore.missions = [...DEFAULT_MISSIONS];
         }
 
         // 4. Teams & Requests
