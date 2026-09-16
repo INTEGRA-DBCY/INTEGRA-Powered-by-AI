@@ -98,7 +98,7 @@ export const firebaseService = {
       const coordAltList = await safeGetDocs(COORDINATORS_ALT);
       const staffList = await safeGetDocs(STAFF);
 
-      // Merge participants, volunteers, coordinators, and users intelligently with multi-key cross-referencing
+      // Merge participants, volunteers, coordinators, and users intelligently with strict email matching
       const userMap = new Map<string, any>();
       const mergeUserRecord = (u: any) => {
         if (!u) return;
@@ -106,10 +106,23 @@ export const firebaseService = {
         const pidKey = (u.participantId || "").toLowerCase().trim();
         const idKey = (u.id || "").toLowerCase().trim();
 
-        // Cross-match existing record by email, participantId, or id
-        const existing = (emailKey ? userMap.get(emailKey) : null) ||
-                         (pidKey ? userMap.get(pidKey) : null) ||
-                         (idKey ? userMap.get(idKey) : null);
+        // Cross-match existing record strictly: email is primary, id/pid only if emails match or are absent
+        let existing: any = null;
+        if (emailKey && userMap.has(emailKey)) {
+          existing = userMap.get(emailKey);
+        } else if (idKey && userMap.has(idKey)) {
+          const cand = userMap.get(idKey);
+          const candEmail = (cand?.email || "").toLowerCase().trim();
+          if (!emailKey || !candEmail || emailKey === candEmail) {
+            existing = cand;
+          }
+        } else if (pidKey && userMap.has(pidKey)) {
+          const cand = userMap.get(pidKey);
+          const candEmail = (cand?.email || "").toLowerCase().trim();
+          if (!emailKey || !candEmail || emailKey === candEmail) {
+            existing = cand;
+          }
+        }
 
         const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
                            (u.paymentStatus || "").toLowerCase() === "verified" ||
@@ -123,17 +136,18 @@ export const firebaseService = {
             : "Pending";
 
         if (existing) {
-          const oldEmail = (existing.email || "").toLowerCase().trim();
-          const oldPid = (existing.participantId || "").toLowerCase().trim();
-          const oldId = (existing.id || "").toLowerCase().trim();
-          const oldReg = (existing.registrationId || "").toLowerCase().trim();
+          const mergedRoles = Array.from(new Set([
+            ...(Array.isArray(existing.roles) ? existing.roles : [existing.role || "student"]),
+            ...(Array.isArray(u.roles) ? u.roles : [u.role || "student"])
+          ]));
 
           Object.assign(existing, {
             ...u,
             id: existing.id || u.id,
             participantId: existing.participantId || u.participantId,
             registrationId: existing.registrationId || u.registrationId,
-            role: u.role || existing.role,
+            role: existing.role || u.role,
+            roles: mergedRoles,
             volunteerDuty: u.volunteerDuty || existing.volunteerDuty,
             paymentStatus,
             paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
@@ -141,21 +155,27 @@ export const firebaseService = {
             achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
           });
 
-          if (oldEmail) userMap.set(oldEmail, existing);
-          if (oldPid) userMap.set(oldPid, existing);
-          if (oldId) userMap.set(oldId, existing);
-          if (oldReg) userMap.set(oldReg, existing);
           if (emailKey) userMap.set(emailKey, existing);
-          if (pidKey) userMap.set(pidKey, existing);
           if (idKey) userMap.set(idKey, existing);
+          if (pidKey) {
+            const currentInPid = userMap.get(pidKey);
+            if (!currentInPid || (currentInPid?.email || "").toLowerCase().trim() === emailKey) {
+              userMap.set(pidKey, existing);
+            }
+          }
         } else {
           const created = {
             ...u,
             paymentStatus
           };
           if (emailKey) userMap.set(emailKey, created);
-          if (pidKey) userMap.set(pidKey, created);
           if (idKey) userMap.set(idKey, created);
+          if (pidKey) {
+            const currentInPid = userMap.get(pidKey);
+            if (!currentInPid || (currentInPid?.email || "").toLowerCase().trim() === emailKey) {
+              userMap.set(pidKey, created);
+            }
+          }
         }
       };
 

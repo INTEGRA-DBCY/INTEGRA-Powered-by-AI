@@ -1475,14 +1475,16 @@ export default function AdminDashboard() {
       fetchData(true);
     });
 
-    // Auto-sync when tab receives focus or every 6 seconds in background
+    // Auto-sync when tab receives focus or every 15 seconds in background
     const syncCloudData = () => {
       mockDB.syncFromCloud().then(() => {
-        fetchData(false);
+        if (typeof document !== "undefined" && !document.hidden) {
+          fetchData(false);
+        }
       });
     };
     window.addEventListener("focus", syncCloudData);
-    const syncTimer = setInterval(syncCloudData, 6000);
+    const syncTimer = setInterval(syncCloudData, 15000);
 
     return () => {
       window.removeEventListener("focus", syncCloudData);
@@ -1491,7 +1493,8 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchData = (forceSettingsReload: boolean = false) => {
-    setSymposiums(mockDB.getSymposiums());
+    const syms = mockDB.getSymposiums();
+    setSymposiums(prev => prev.length === syms.length ? prev : syms);
     const active = mockDB.getActiveSymposium();
     setActiveSymposium(active);
     let allActiveUsers = mockDB.getUsers(active.id);
@@ -1501,18 +1504,34 @@ export default function AdminDashboard() {
         allActiveUsers = allRaw;
       }
     }
-    setUsers(allActiveUsers);
-    setMissions(mockDB.getMissions(active.id));
-    setAnnouncements(mockDB.getAnnouncements(active.id));
-    setColleges(mockDB.getColleges());
-    setTeams(mockDB.getTeams(active.id));
-    setScores(mockDB.getScores(active.id));
-    setActivityLogs(mockDB.getActivityLogs(active.id));
-    setVolunteers(mockDB.getVolunteers(active.id));
-    setCertificates(mockDB.getCertificates(active.id));
-    setRefreshmentStalls(mockDB.getRefreshmentStalls(active.id));
-    setRefreshmentTxns(mockDB.getRefreshmentTransactions(active.id));
-    setRefreshmentOverview(mockDB.getRefreshmentOverview(active.id));
+    setUsers(prev => {
+      if (prev.length === allActiveUsers.length && prev.every((u, i) => u.id === allActiveUsers[i]?.id && u.paymentStatus === allActiveUsers[i]?.paymentStatus && u.participantId === allActiveUsers[i]?.participantId && u.registeredEvents?.length === allActiveUsers[i]?.registeredEvents?.length)) {
+        return prev;
+      }
+      return allActiveUsers;
+    });
+    const missions = mockDB.getMissions(active.id);
+    setMissions(prev => prev.length === missions.length ? prev : missions);
+    const announcements = mockDB.getAnnouncements(active.id);
+    setAnnouncements(prev => prev.length === announcements.length ? prev : announcements);
+    const colleges = mockDB.getColleges();
+    setColleges(prev => prev.length === colleges.length ? prev : colleges);
+    const teams = mockDB.getTeams(active.id);
+    setTeams(prev => prev.length === teams.length ? prev : teams);
+    const scores = mockDB.getScores(active.id);
+    setScores(prev => prev.length === scores.length ? prev : scores);
+    const logs = mockDB.getActivityLogs(active.id);
+    setActivityLogs(prev => prev.length === logs.length ? prev : logs);
+    const vols = mockDB.getVolunteers(active.id);
+    setVolunteers(prev => prev.length === vols.length ? prev : vols);
+    const certs = mockDB.getCertificates(active.id);
+    setCertificates(prev => prev.length === certs.length ? prev : certs);
+    const stalls = mockDB.getRefreshmentStalls(active.id);
+    setRefreshmentStalls(prev => prev.length === stalls.length ? prev : stalls);
+    const txns = mockDB.getRefreshmentTransactions(active.id);
+    setRefreshmentTxns(prev => prev.length === txns.length ? prev : txns);
+    const overview = mockDB.getRefreshmentOverview(active.id);
+    setRefreshmentOverview(overview);
     setRefreshmentAllowanceInput(active.refreshmentAllowance || 20);
 
     // Always keep active feedback questions in sync

@@ -1237,16 +1237,26 @@ export const mockDB = {
       (u.role !== "student" || isMatchingSymposium(u.symposiumId, targetSym))
     );
     
-    // Deduplicate by multi-key indexing so each person appears exactly once with all their merged roles and payment state
+    // Deduplicate strictly by email (or id/pid only if emails match) so students never overwrite each other
     const userMap = new Map<string, User>();
     for (const u of filtered) {
+      if (!u) continue;
       const emailKey = (u.email || "").toLowerCase().trim();
       const pidKey = (u.participantId || "").toLowerCase().trim();
       const idKey = (u.id || "").toLowerCase().trim();
 
-      const existing = (emailKey ? userMap.get(emailKey) : null) ||
-                       (pidKey ? userMap.get(pidKey) : null) ||
-                       (idKey ? userMap.get(idKey) : null);
+      let existing: User | null = null;
+      if (emailKey && userMap.has(emailKey)) {
+        existing = userMap.get(emailKey)!;
+      } else if (idKey && userMap.has(idKey)) {
+        const cand = userMap.get(idKey)!;
+        const candEmail = (cand.email || "").toLowerCase().trim();
+        if (!emailKey || !candEmail || emailKey === candEmail) existing = cand;
+      } else if (pidKey && userMap.has(pidKey)) {
+        const cand = userMap.get(pidKey)!;
+        const candEmail = (cand.email || "").toLowerCase().trim();
+        if (!emailKey || !candEmail || emailKey === candEmail) existing = cand;
+      }
 
       const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
                          (u.paymentStatus || "").toLowerCase() === "verified" ||
@@ -1261,8 +1271,11 @@ export const mockDB = {
           roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || "coordinator"]
         };
         if (emailKey) userMap.set(emailKey, created);
-        if (pidKey) userMap.set(pidKey, created);
         if (idKey) userMap.set(idKey, created);
+        if (pidKey) {
+          const cur = userMap.get(pidKey);
+          if (!cur || (cur.email || "").toLowerCase().trim() === emailKey) userMap.set(pidKey, created);
+        }
       } else {
         const mergedRoles = Array.from(new Set([
           ...(existing.roles || [existing.role]),
@@ -1285,8 +1298,11 @@ export const mockDB = {
           achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
         };
         if (emailKey) userMap.set(emailKey, merged);
-        if (pidKey) userMap.set(pidKey, merged);
         if (idKey) userMap.set(idKey, merged);
+        if (pidKey) {
+          const cur = userMap.get(pidKey);
+          if (!cur || (cur.email || "").toLowerCase().trim() === emailKey) userMap.set(pidKey, merged);
+        }
       }
     }
     return Array.from(new Set(userMap.values()));
@@ -1295,13 +1311,23 @@ export const mockDB = {
   getAllUsersRaw: (): User[] => {
     const userMap = new Map<string, User>();
     for (const u of memoryStore.users) {
+      if (!u) continue;
       const emailKey = (u.email || "").toLowerCase().trim();
       const pidKey = (u.participantId || "").toLowerCase().trim();
       const idKey = (u.id || "").toLowerCase().trim();
 
-      const existing = (emailKey ? userMap.get(emailKey) : null) ||
-                       (pidKey ? userMap.get(pidKey) : null) ||
-                       (idKey ? userMap.get(idKey) : null);
+      let existing: User | null = null;
+      if (emailKey && userMap.has(emailKey)) {
+        existing = userMap.get(emailKey)!;
+      } else if (idKey && userMap.has(idKey)) {
+        const cand = userMap.get(idKey)!;
+        const candEmail = (cand.email || "").toLowerCase().trim();
+        if (!emailKey || !candEmail || emailKey === candEmail) existing = cand;
+      } else if (pidKey && userMap.has(pidKey)) {
+        const cand = userMap.get(pidKey)!;
+        const candEmail = (cand.email || "").toLowerCase().trim();
+        if (!emailKey || !candEmail || emailKey === candEmail) existing = cand;
+      }
 
       const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
                          (u.paymentStatus || "").toLowerCase() === "verified" ||
@@ -1312,8 +1338,11 @@ export const mockDB = {
       if (!existing) {
         const created: User = { ...u, paymentStatus };
         if (emailKey) userMap.set(emailKey, created);
-        if (pidKey) userMap.set(pidKey, created);
         if (idKey) userMap.set(idKey, created);
+        if (pidKey) {
+          const cur = userMap.get(pidKey);
+          if (!cur || (cur.email || "").toLowerCase().trim() === emailKey) userMap.set(pidKey, created);
+        }
       } else {
         const merged: User = {
           ...existing,
@@ -1327,8 +1356,11 @@ export const mockDB = {
           achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
         };
         if (emailKey) userMap.set(emailKey, merged);
-        if (pidKey) userMap.set(pidKey, merged);
         if (idKey) userMap.set(idKey, merged);
+        if (pidKey) {
+          const cur = userMap.get(pidKey);
+          if (!cur || (cur.email || "").toLowerCase().trim() === emailKey) userMap.set(pidKey, merged);
+        }
       }
     }
     return Array.from(new Set(userMap.values()));
@@ -1406,17 +1438,6 @@ export const mockDB = {
     photoUrl: string;
     shift?: string;
   }): Promise<User> => {
-    // 1. Pull latest cloud data directly from Firebase Cloud Firestore
-    let cloudData = null;
-    try {
-      cloudData = await firebaseService.pullAllData();
-      if (cloudData && Array.isArray(cloudData.users)) {
-        memoryStore.users = cloudData.users;
-      }
-    } catch (e) {
-      console.warn("Cloud sync notice during registration:", e);
-    }
-
     // Enforce strict field validations
     const nameVal = validateFullName(data.name);
     if (!nameVal.valid) throw new Error(nameVal.error || "Invalid Full Name.");
@@ -1429,6 +1450,42 @@ export const mockDB = {
 
     const colVal = validateCollege(data.college);
     if (!colVal.valid) throw new Error(colVal.error || "Invalid College.");
+
+    // 1. Invoke atomic server registration endpoint (collision-free PID guarantee)
+    if (typeof window !== "undefined") {
+      try {
+        const res = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+        const resData = await res.json();
+        if (!res.ok || !resData.success) {
+          throw new Error(resData.error || "Registration failed on server.");
+        }
+        const serverStudent: User = resData.user;
+        memoryStore.users.push(serverStudent);
+        setSessionUser(serverStudent);
+        mockDB.logActivity(serverStudent.id, serverStudent.name, "PARTICIPANT_REGISTERED", `Participant ${serverStudent.name} (${serverStudent.participantId}) registered with offline payment pending (Server Atomic).`);
+        return serverStudent;
+      } catch (err: any) {
+        if (err.message && (err.message.includes("already registered") || err.message.includes("Invalid") || err.message.includes("mobile") || err.message.includes("email") || err.message.includes("required"))) {
+          throw err;
+        }
+        console.warn("Server registration fallback:", err);
+      }
+    }
+
+    // 1. Pull latest cloud data directly from Firebase Cloud Firestore
+    let cloudData = null;
+    try {
+      cloudData = await firebaseService.pullAllData();
+      if (cloudData && Array.isArray(cloudData.users)) {
+        memoryStore.users = cloudData.users;
+      }
+    } catch (e) {
+      console.warn("Cloud sync notice during registration:", e);
+    }
 
     const activeSym = mockDB.getActiveSymposium();
     
@@ -3287,9 +3344,18 @@ export const mockDB = {
             const pidKey = (u.participantId || "").toLowerCase().trim();
             const idKey = (u.id || "").toLowerCase().trim();
 
-            const existing = (emailKey ? userMap.get(emailKey) : null) ||
-                             (pidKey ? userMap.get(pidKey) : null) ||
-                             (idKey ? userMap.get(idKey) : null);
+            let existing: User | null = null;
+            if (emailKey && userMap.has(emailKey)) {
+              existing = userMap.get(emailKey)!;
+            } else if (idKey && userMap.has(idKey)) {
+              const cand = userMap.get(idKey)!;
+              const candEmail = (cand.email || "").toLowerCase().trim();
+              if (!emailKey || !candEmail || emailKey === candEmail) existing = cand;
+            } else if (pidKey && userMap.has(pidKey)) {
+              const cand = userMap.get(pidKey)!;
+              const candEmail = (cand.email || "").toLowerCase().trim();
+              if (!emailKey || !candEmail || emailKey === candEmail) existing = cand;
+            }
 
             const isVerified = (existing?.paymentStatus || "").toLowerCase() === "verified" ||
                                (u.paymentStatus || "").toLowerCase() === "verified" ||
@@ -3309,14 +3375,12 @@ export const mockDB = {
                 roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || "coordinator"]
               };
               if (emailKey) userMap.set(emailKey, created);
-              if (pidKey) userMap.set(pidKey, created);
               if (idKey) userMap.set(idKey, created);
+              if (pidKey) {
+                const cur = userMap.get(pidKey);
+                if (!cur || (cur.email || "").toLowerCase().trim() === emailKey) userMap.set(pidKey, created);
+              }
             } else {
-              const oldEmail = (existing.email || "").toLowerCase().trim();
-              const oldPid = (existing.participantId || "").toLowerCase().trim();
-              const oldId = (existing.id || "").toLowerCase().trim();
-              const oldReg = (existing.registrationId || "").toLowerCase().trim();
-
               const mergedRoles = Array.from(new Set([
                 ...(existing.roles || [existing.role]),
                 ...(u.roles || [u.role])
@@ -3336,13 +3400,12 @@ export const mockDB = {
                 achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
               });
 
-              if (oldEmail) userMap.set(oldEmail, existing);
-              if (oldPid) userMap.set(oldPid, existing);
-              if (oldId) userMap.set(oldId, existing);
-              if (oldReg) userMap.set(oldReg, existing);
               if (emailKey) userMap.set(emailKey, existing);
-              if (pidKey) userMap.set(pidKey, existing);
               if (idKey) userMap.set(idKey, existing);
+              if (pidKey) {
+                const cur = userMap.get(pidKey);
+                if (!cur || (cur.email || "").toLowerCase().trim() === emailKey) userMap.set(pidKey, existing);
+              }
             }
           };
 
@@ -3373,12 +3436,13 @@ export const mockDB = {
             const cPid = (curr.participantId || "").toLowerCase().trim();
             const cId = (curr.id || "").toLowerCase().trim();
 
-            const fresh = memoryStore.users.find(u =>
-              (cId && (u.id || "").toLowerCase() === cId) ||
-              (cPid && (u.participantId || "").toLowerCase() === cPid) ||
-              (cEmail && (u.email || "").toLowerCase() === cEmail) ||
-              (curr.registrationId && u.registrationId === curr.registrationId)
-            );
+            const fresh = memoryStore.users.find(u => {
+              const uEmail = (u.email || "").toLowerCase().trim();
+              if (cEmail && uEmail) return uEmail === cEmail;
+              if (cId && (u.id || "").toLowerCase() === cId) return true;
+              if (cPid && (u.participantId || "").toLowerCase() === cPid) return true;
+              return Boolean(curr.registrationId && u.registrationId === curr.registrationId);
+            });
             if (fresh) {
               const mergedEvents = Array.from(new Set([
                 ...(curr.registeredEvents || []),

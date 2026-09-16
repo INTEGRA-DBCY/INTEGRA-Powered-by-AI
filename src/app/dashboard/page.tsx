@@ -78,15 +78,14 @@ export default function StudentDashboard() {
     const cEmail = (curr.email || "").toLowerCase().trim();
     const cPid = (curr.participantId || "").toLowerCase().trim();
     const cId = (curr.id || "").toLowerCase().trim();
-    const matchingUsers = allUsers.filter(u =>
-      (cId && (u.id || "").toLowerCase() === cId) ||
-      (cPid && (u.participantId || "").toLowerCase() === cPid) ||
-      (cEmail && (u.email || "").toLowerCase() === cEmail) ||
-      (curr.registrationId && (u.registrationId || "").toLowerCase() === curr.registrationId.toLowerCase())
-    );
-    const dbMatch = matchingUsers[0] || null;
 
-    const isVerified = isPaymentVerified(curr) || matchingUsers.some(u => isPaymentVerified(u));
+    // Strict lookup: match by email first, or by id/pid only if emails match
+    const dbMatch = (cEmail ? allUsers.find(u => (u.email || "").toLowerCase().trim() === cEmail) : null) ||
+                    (cId ? allUsers.find(u => (u.id || "").toLowerCase().trim() === cId) : null) ||
+                    (cPid ? allUsers.find(u => (u.participantId || "").toLowerCase().trim() === cPid && (!cEmail || (u.email || "").toLowerCase().trim() === cEmail)) : null) ||
+                    null;
+
+    const isVerified = isPaymentVerified(curr) || (dbMatch ? isPaymentVerified(dbMatch) : false);
     const mergedEvents = Array.from(new Set([
       ...(curr.registeredEvents || []),
       ...(dbMatch?.registeredEvents || [])
@@ -98,13 +97,6 @@ export default function StudentDashboard() {
         resolvedUser.paymentDetails = curr.paymentDetails || dbMatch?.paymentDetails;
       }
       mockDB.setCurrentUser(resolvedUser);
-    } else {
-      mockDB.checkPaymentStatusAsync(curr.participantId || curr.id).then(verified => {
-        if (verified) {
-          const fresh = mockDB.getCurrentUser();
-          if (fresh) loadDashboardData(fresh);
-        }
-      });
     }
 
     setUser(resolvedUser);
@@ -122,10 +114,6 @@ export default function StudentDashboard() {
     if (myToken) setFoodToken(myToken);
     else if (isPaymentVerified(resolvedUser)) {
       setFoodToken(mockDB.generateFoodToken(resolvedUser));
-    }
-
-    if (resolvedUser.isFirstLogin === true) {
-      setShowFirstLoginModal(true);
     }
     
     const allCerts = mockDB.getCertificates();
@@ -156,20 +144,22 @@ export default function StudentDashboard() {
       loadDashboardData(freshUser);
     });
 
-    // Auto-poll cloud every 6 seconds while payment is pending so user screen unlocks automatically
+    // Auto-poll cloud while payment is pending so user screen unlocks automatically when verified
     const pollInterval = setInterval(() => {
       const activeUser = mockDB.getCurrentUser();
       if (activeUser && !isPaymentVerified(activeUser)) {
-        mockDB.checkPaymentStatusAsync(activeUser.participantId || activeUser.id).then(() => {
-          mockDB.syncFromCloud(true).then(() => {
-            const freshUser = mockDB.getCurrentUser();
-            if (freshUser) {
-              loadDashboardData(freshUser);
-            }
-          });
+        mockDB.checkPaymentStatusAsync(activeUser.participantId || activeUser.id).then((verified) => {
+          if (verified) {
+            mockDB.syncFromCloud(true).then(() => {
+              const freshUser = mockDB.getCurrentUser();
+              if (freshUser) {
+                loadDashboardData(freshUser);
+              }
+            });
+          }
         });
       }
-    }, 6000);
+    }, 8000);
 
     return () => clearInterval(pollInterval);
   }, []);
