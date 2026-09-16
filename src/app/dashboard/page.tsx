@@ -240,10 +240,14 @@ export default function StudentDashboard() {
 
   const handleRefresh = () => {
     mockDB.init();
+    const curr = mockDB.getCurrentUser();
+    if (curr) {
+      loadDashboardData(curr);
+    }
     mockDB.syncFromCloud().then(() => {
-      const curr = mockDB.getCurrentUser();
-      if (curr) {
-        loadDashboardData(curr);
+      const freshUser = mockDB.getCurrentUser() || curr;
+      if (freshUser) {
+        loadDashboardData(freshUser);
       }
     });
   };
@@ -410,7 +414,14 @@ export default function StudentDashboard() {
     if (eventCategoryFilter === "All") return true;
     return (m.category || "").toLowerCase() === eventCategoryFilter.toLowerCase();
   });
-  const myTeams = teams.filter(t => t.leaderId === (user.participantId || user.id) || (t.members && t.members.some((m: any) => (typeof m === "string" ? m : m.studentId) === (user.participantId || user.id))));
+  const myTeams = teams.filter(t => 
+    t.leaderId === user.participantId || 
+    t.leaderId === user.id || 
+    (t.members && t.members.some((m: any) => {
+      const mId = typeof m === "string" ? m : (m.studentId || m.id);
+      return mId === user.participantId || mId === user.id;
+    }))
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col relative cyber-grid selection:bg-purple-500 selection:text-slate-900 font-bold overflow-x-hidden max-w-full w-full">
@@ -1204,39 +1215,54 @@ export default function StudentDashboard() {
                 <p className="text-xs text-slate-600 font-sans">Create teams, invite verified participants by Participant ID, and respond to invitations.</p>
               </div>
 
-              {/* Pending Received Join Requests */}
-              {joinRequests.filter(r => r.status === "Pending").length > 0 && (
+              {/* Pending Received Join Requests & Invitations */}
+              {joinRequests.filter(r => (r.status || "").toLowerCase() === "pending").length > 0 && (
                 <div className="p-4 rounded-3xl bg-white border border-purple-500/40 space-y-3 shadow-xl">
                   <h4 className="text-xs font-heading font-bold text-blue-600 flex items-center gap-2 font-mono">
                     <UserPlus size={14} />
-                    Pending Team Invitations / Requests
+                    Pending Team Invitations &amp; Join Requests
                   </h4>
-                  <div className="space-y-2 font-mono">
-                    {joinRequests.filter(r => r.status === "Pending").map(req => (
-                      <div key={req.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs shadow-md">
-                        <div>
-                          <span className="font-black text-slate-900 font-sans">{req.teamName}</span>
-                          <span className="text-slate-600 font-mono text-[10px] ml-2">(Leader: {req.leaderId})</span>
-                          <p className="text-[10px] text-blue-600 font-bold">Invitation for Event: {req.eventId}</p>
+                  <div className="space-y-2.5 font-mono">
+                    {joinRequests.filter(r => (r.status || "").toLowerCase() === "pending").map(req => {
+                      const isIncomingJoinRequest = req.type === "join_request" && (req.leaderId === user.participantId || req.leaderId === user.id);
+                      const targetEvent = missions.find(m => m.id === (req.missionId || req.eventId));
+
+                      return (
+                        <div key={req.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs shadow-md">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded ${isIncomingJoinRequest ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-purple-100 text-purple-900 border border-purple-300"}`}>
+                                {isIncomingJoinRequest ? "JOIN REQUEST" : "TEAM INVITATION"}
+                              </span>
+                              <span className="font-black text-slate-900 font-sans text-sm">{req.teamName}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-700 font-sans mt-1">
+                              {isIncomingJoinRequest ? (
+                                <>Candidate <strong className="text-blue-700 font-semibold">{req.studentName}</strong> ({req.studentParticipantId || req.studentId}) wants to join your team for <strong>{targetEvent?.name || req.missionId}</strong>.</>
+                              ) : (
+                                <>Team Leader <strong className="text-blue-700 font-semibold">{req.leaderName || req.leaderId}</strong> invited you to join for <strong>{targetEvent?.name || req.missionId}</strong>.</>
+                              )}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => handleRespondRequest(req.id, true)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 shadow-sm transition-colors"
+                            >
+                              <Check size={14} />
+                              <span>Accept</span>
+                            </button>
+                            <button
+                              onClick={() => handleRespondRequest(req.id, false)}
+                              className="bg-slate-200 hover:bg-rose-100 text-slate-700 hover:text-rose-700 font-bold px-3.5 py-1.5 rounded-xl cursor-pointer text-xs flex items-center gap-1 transition-colors"
+                            >
+                              <X size={14} />
+                              <span>Reject</span>
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleRespondRequest(req.id, true)}
-                            className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-900 text-emerald-900 font-bold border border-emerald-500/40 px-3 py-1 rounded-xl cursor-pointer font-bold text-xs flex items-center gap-1"
-                          >
-                            <Check size={14} />
-                            <span>Accept</span>
-                          </button>
-                          <button
-                            onClick={() => handleRespondRequest(req.id, false)}
-                            className="bg-rose-50 border border-rose-200 hover:bg-red-900 text-rose-900 font-bold border border-red-500/40 px-3 py-1 rounded-xl cursor-pointer font-bold text-xs flex items-center gap-1"
-                          >
-                            <X size={14} />
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1249,7 +1275,7 @@ export default function StudentDashboard() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                   {myTeams.map(team => {
-                    const isLeader = team.leaderId === (user.participantId || user.id);
+                    const isLeader = team.leaderId === user.participantId || team.leaderId === user.id;
                     return (
                       <div key={team.id} className="bg-white border border-purple-300 rounded-3xl p-5 flex flex-col justify-between space-y-3 shadow-xl">
                         <div>
@@ -1530,7 +1556,7 @@ export default function StudentDashboard() {
               <UserPlus className="text-blue-600" size={18} />
               Invite Member to {inviteMemberModalTeam.teamName}
             </h3>
-            <p className="text-xs text-slate-700 font-sans">Enter the verified participant&apos;s Participant ID (e.g. INT26-0045) to send an invitation.</p>
+            <p className="text-xs text-slate-700 font-sans">Enter the candidate&apos;s verified Participant ID (e.g. VIS-2026-0045) to send an invitation.</p>
 
             <form onSubmit={handleInviteMemberSubmit} className="space-y-4 text-xs">
               <div>
@@ -1539,7 +1565,7 @@ export default function StudentDashboard() {
                   type="text"
                   value={inviteParticipantIdInput}
                   onChange={(e) => setInviteParticipantIdInput(e.target.value)}
-                  placeholder="e.g. INT26-0045"
+                  placeholder="e.g. VIS-2026-0045"
                   required
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono uppercase"
                 />
@@ -1573,7 +1599,7 @@ export default function StudentDashboard() {
               <Users className="text-blue-900 font-extrabold" size={18} />
               Join Team for {joinTeamModalEvent.name}
             </h3>
-            <p className="text-xs text-slate-700 font-sans">Enter the Team ID or Team Leader&apos;s Participant ID to send a join request.</p>
+            <p className="text-xs text-slate-700 font-sans">Enter the Team ID, Team Name, or Team Leader&apos;s Participant ID to send a join request.</p>
 
             <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-950 font-mono font-bold">
               ℹ️ <strong>Category Track:</strong> Joining this team will count as your 1 {joinTeamModalEvent.category} event registration.
@@ -1581,12 +1607,12 @@ export default function StudentDashboard() {
 
             <form onSubmit={handleJoinTeamSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] font-bold uppercase tracking-wider mb-1.5">Team ID or Leader ID *</label>
+                <label className="block text-slate-700 font-mono text-[11px] font-bold uppercase tracking-wider mb-1.5">Team Name, Team ID, or Leader ID *</label>
                 <input
                   type="text"
                   value={joinTargetInput}
                   onChange={(e) => setJoinTargetInput(e.target.value)}
-                  placeholder="e.g. TEAM-INT-1024 or INT26-0045"
+                  placeholder="e.g. VIS-2026-0045 or SquadName"
                   required
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />

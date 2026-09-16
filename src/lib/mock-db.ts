@@ -216,12 +216,15 @@ export interface TeamJoinRequest {
   teamId: string;
   teamName: string;
   leaderId?: string;
+  leaderName?: string;
   eventId?: string;
   missionId?: string;
   senderId?: string;
   senderName?: string;
   studentId?: string;
+  studentParticipantId?: string;
   studentName?: string;
+  type?: "invitation" | "join_request" | string;
   status: "Pending" | "Accepted" | "Rejected" | "pending" | "accepted" | "rejected" | string;
   timestamp?: string;
 }
@@ -1965,12 +1968,17 @@ export const mockDB = {
   },
 
   inviteTeamMember: (teamId: string, leaderIdOrStudentId: string, maybeTargetStudentId?: string) => {
-    const targetStudentId = maybeTargetStudentId ? maybeTargetStudentId : leaderIdOrStudentId;
+    const rawTarget = (maybeTargetStudentId ? maybeTargetStudentId : leaderIdOrStudentId || "").trim();
+    const cleanTarget = rawTarget.toLowerCase();
     const team = memoryStore.teams.find(t => t.id === teamId);
     if (!team) throw new Error("Team not found.");
 
-    const student = memoryStore.users.find(u => u.id === targetStudentId || u.participantId === targetStudentId);
-    if (!student) throw new Error("Participant not found.");
+    const student = memoryStore.users.find(u => 
+      (u.participantId && u.participantId.toLowerCase() === cleanTarget) ||
+      (u.id && u.id.toLowerCase() === cleanTarget) ||
+      (u.email && u.email.toLowerCase() === cleanTarget)
+    );
+    if (!student) throw new Error(`Participant "${rawTarget}" not found. Please verify the Participant ID.`);
 
     const leaderUser = memoryStore.users.find(u => u.participantId === team.leaderId || u.id === team.leaderId);
     const teamCollege = team.college || leaderUser?.college || "";
@@ -1984,14 +1992,37 @@ export const mockDB = {
       throw new Error(`Team restriction: All team members must belong to the same department (${teamDept}).`);
     }
 
+    // Check if already in team
+    const studentPartId = student.participantId || student.id;
+    if (team.members && team.members.some(m => {
+      const mId = typeof m === "string" ? m : (m.studentId || (m as any).id);
+      return mId === studentPartId || mId === student.id;
+    })) {
+      throw new Error(`Participant ${student.name} is already a member of this team.`);
+    }
+
+    // Check if already invited
+    const existing = memoryStore.joinRequests.find(r => 
+      r.teamId === teamId && 
+      (r.studentId === student.id || (r as any).studentParticipantId === studentPartId) && 
+      (r.status || "").toLowerCase() === "pending"
+    );
+    if (existing) throw new Error(`An invitation has already been sent to ${student.name}.`);
+
+    const targetMissionId = team.missionId || team.eventId || "";
     const teamDisplayName = team.teamName || team.name || "Team";
     const newRequest = {
       id: `req-${Date.now()}`,
       teamId,
       teamName: teamDisplayName,
-      missionId: team.missionId || team.eventId || "",
+      missionId: targetMissionId,
+      eventId: targetMissionId,
+      leaderId: team.leaderId,
+      leaderName: team.leaderName || leaderUser?.name || "Team Leader",
       studentId: student.id,
+      studentParticipantId: studentPartId,
       studentName: student.name,
+      type: "invitation",
       status: "pending",
       timestamp: new Date().toISOString()
     };
@@ -2003,16 +2034,18 @@ export const mockDB = {
 
   joinTeam: (teamCodeOrNameOrId: string, missionId: string, studentId: string) => {
     const cleanSearch = (teamCodeOrNameOrId || "").trim().toLowerCase();
-    if (!cleanSearch) throw new Error("Please enter a valid Team ID or Leader ID.");
+    if (!cleanSearch) throw new Error("Please enter a valid Team ID or Leader Participant ID.");
 
     const team = memoryStore.teams.find(t => {
+      const tLeader = memoryStore.users.find(u => u.participantId === t.leaderId || u.id === t.leaderId);
       const matchId = t.id && t.id.toLowerCase().trim() === cleanSearch;
       const matchLeaderId = (t.leaderId || "").toLowerCase().trim() === cleanSearch;
-      const matchLeaderName = (t.leaderName || "").toLowerCase().trim() === cleanSearch;
+      const matchLeaderPartId = (tLeader?.participantId || "").toLowerCase().trim() === cleanSearch;
+      const matchLeaderName = (t.leaderName || tLeader?.name || "").toLowerCase().trim() === cleanSearch;
       const matchName = (t.teamName || t.name || "").toLowerCase().trim() === cleanSearch;
       const matchCode = (t as any).code && (t as any).code.toLowerCase().trim() === cleanSearch;
 
-      const matchesQuery = matchId || matchLeaderId || matchLeaderName || matchName || matchCode;
+      const matchesQuery = matchId || matchLeaderId || matchLeaderPartId || matchLeaderName || matchName || matchCode;
       if (!matchesQuery) return false;
 
       if (!missionId) return true;
@@ -2020,12 +2053,19 @@ export const mockDB = {
       const targetMission = missionId.toLowerCase();
       return tMission === targetMission || tMission.includes(targetMission) || targetMission.includes(tMission);
     });
-    if (!team) throw new Error("Team not found for this event.");
+    if (!team) throw new Error("Team not found for this event. Please verify the Team ID or Leader Participant ID.");
 
-    const student = memoryStore.users.find(u => u.id === studentId || u.participantId === studentId);
+    const student = memoryStore.users.find(u => 
+      u.id?.toLowerCase() === studentId.toLowerCase() || 
+      u.participantId?.toLowerCase() === studentId.toLowerCase()
+    );
     if (!student) throw new Error("Participant not found.");
 
-    if (team.members && team.members.some(m => (typeof m === "string" ? m : m.studentId) === (student.participantId || student.id))) {
+    const studentPartId = student.participantId || student.id;
+    if (team.members && team.members.some(m => {
+      const mId = typeof m === "string" ? m : (m.studentId || (m as any).id);
+      return mId === studentPartId || mId === student.id;
+    })) {
       throw new Error("You are already a member of this team.");
     }
 
@@ -2053,14 +2093,27 @@ export const mockDB = {
       throw new Error(`Time Clash: The event is scheduled in ${clashCheck.clashingSlot}, which overlaps with your registered event '${clashCheck.clashingMissionName}'.`);
     }
 
+    // Check if already requested
+    const existing = memoryStore.joinRequests.find(r => 
+      r.teamId === team.id && 
+      (r.studentId === student.id || (r as any).studentParticipantId === studentPartId) && 
+      (r.status || "").toLowerCase() === "pending"
+    );
+    if (existing) throw new Error("You have already sent a join request to this team.");
+
     const teamDisplayName = team.teamName || team.name || "Team";
     const newRequest = {
       id: `req-${Date.now()}`,
       teamId: team.id,
       teamName: teamDisplayName,
       missionId: targetMissionId,
+      eventId: targetMissionId,
+      leaderId: team.leaderId,
+      leaderName: team.leaderName || leaderUser?.name || "Team Leader",
       studentId: student.id,
+      studentParticipantId: studentPartId,
       studentName: student.name,
+      type: "join_request",
       status: "pending",
       timestamp: new Date().toISOString()
     };
@@ -2070,32 +2123,87 @@ export const mockDB = {
     firebaseService.saveJoinRequest(newRequest);
   },
 
-  getJoinRequests: (studentId: string) => {
-    return memoryStore.joinRequests.filter(r => r.studentId === studentId && r.status === "pending");
+  getJoinRequests: (studentIdOrPartId: string) => {
+    const clean = (studentIdOrPartId || "").trim().toLowerCase();
+    const studentUser = memoryStore.users.find(u => 
+      (u.id && u.id.toLowerCase() === clean) || 
+      (u.participantId && u.participantId.toLowerCase() === clean)
+    );
+    const userId = studentUser?.id?.toLowerCase() || clean;
+    const partId = studentUser?.participantId?.toLowerCase() || clean;
+
+    // Set of team IDs led by this user
+    const ledTeamIds = new Set(
+      memoryStore.teams
+        .filter(t => {
+          const lId = (t.leaderId || "").toLowerCase();
+          return lId === userId || lId === partId;
+        })
+        .map(t => t.id)
+    );
+
+    return memoryStore.joinRequests.filter(r => {
+      if ((r.status || "").toLowerCase() !== "pending") return false;
+
+      const rStudentId = (r.studentId || "").toLowerCase();
+      const rStudentPartId = ((r as any).studentParticipantId || "").toLowerCase();
+
+      // Incoming invite sent to this student
+      const isInvited = rStudentId === userId || rStudentId === partId || 
+                        rStudentPartId === userId || rStudentPartId === partId;
+
+      // Incoming join request sent to a team led by this user
+      const isLeaderOfTeam = ledTeamIds.has(r.teamId);
+
+      return isInvited || isLeaderOfTeam;
+    });
   },
 
   respondToTeamInvitation: (requestId: string, accept: boolean) => {
     const req = memoryStore.joinRequests.find(r => r.id === requestId);
-    if (!req) return;
+    if (!req) throw new Error("Request not found.");
 
     req.status = accept ? "accepted" : "rejected";
     if (accept) {
       const team = memoryStore.teams.find(t => t.id === req.teamId);
-      if (team && !team.members.some(m => m.studentId === req.studentId)) {
+      if (!team) throw new Error("Team no longer exists.");
+
+      const studentUser = memoryStore.users.find(u => 
+        u.id === req.studentId || 
+        u.participantId === req.studentId || 
+        ((req as any).studentParticipantId && u.participantId === (req as any).studentParticipantId)
+      );
+
+      const targetMissionId = team.missionId || team.eventId || req.missionId;
+
+      if (studentUser && targetMissionId) {
+        const catCheck = mockDB.checkCategoryLimit(studentUser.id, targetMissionId);
+        if (!catCheck.allowed) {
+          req.status = "rejected";
+          firebaseService.saveJoinRequest(req);
+          throw new Error(`Cannot join team: ${catCheck.reason}`);
+        }
+      }
+
+      const memberKey = studentUser?.participantId || studentUser?.id || req.studentId;
+      const memberName = studentUser?.name || req.studentName;
+
+      if (!team.members.some(m => {
+        const mId = typeof m === "string" ? m : (m.studentId || (m as any).id);
+        return mId === memberKey || (studentUser && mId === studentUser.id);
+      })) {
         team.members.push({
-          studentId: req.studentId,
-          studentName: req.studentName,
+          studentId: memberKey,
+          studentName: memberName,
           joinedAt: new Date().toISOString()
         });
         firebaseService.saveTeam(team);
 
         // Auto-enroll accepted member into registeredEvents
-        const studentUser = memoryStore.users.find(u => u.id === req.studentId || u.participantId === req.studentId);
-        const tEventId = team.missionId || team.eventId;
-        if (studentUser && tEventId) {
+        if (studentUser && targetMissionId) {
           const userEnrolled = studentUser.registeredEvents || [];
-          if (!userEnrolled.includes(tEventId)) {
-            studentUser.registeredEvents = [...userEnrolled, tEventId];
+          if (!userEnrolled.includes(targetMissionId)) {
+            studentUser.registeredEvents = [...userEnrolled, targetMissionId];
             mockDB.updateUser(studentUser);
           }
         }
