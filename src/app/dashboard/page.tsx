@@ -78,16 +78,29 @@ export default function StudentDashboard() {
     const cEmail = (curr.email || "").toLowerCase().trim();
     const cPid = (curr.participantId || "").toLowerCase().trim();
     const cId = (curr.id || "").toLowerCase().trim();
-    const dbMatch = allUsers.find(u =>
+    const matchingUsers = allUsers.filter(u =>
       (cId && (u.id || "").toLowerCase() === cId) ||
       (cPid && (u.participantId || "").toLowerCase() === cPid) ||
       (cEmail && (u.email || "").toLowerCase() === cEmail) ||
-      (curr.registrationId && u.registrationId === curr.registrationId)
+      (curr.registrationId && (u.registrationId || "").toLowerCase() === curr.registrationId.toLowerCase())
     );
+    const dbMatch = matchingUsers[0] || null;
+
+    const isVerified = isPaymentVerified(curr) || matchingUsers.some(u => isPaymentVerified(u));
     const resolvedUser: DBUser = dbMatch ? { ...curr, ...dbMatch } : curr;
-    if (isPaymentVerified(dbMatch) && !isPaymentVerified(curr)) {
+    if (isVerified) {
       resolvedUser.paymentStatus = "Verified";
+      if (!resolvedUser.paymentDetails && (curr.paymentDetails || dbMatch?.paymentDetails)) {
+        resolvedUser.paymentDetails = curr.paymentDetails || dbMatch?.paymentDetails;
+      }
       mockDB.setCurrentUser(resolvedUser);
+    } else {
+      mockDB.checkPaymentStatusAsync(curr.participantId || curr.id).then(verified => {
+        if (verified) {
+          const fresh = mockDB.getCurrentUser();
+          if (fresh) loadDashboardData(fresh);
+        }
+      });
     }
 
     setUser(resolvedUser);
@@ -130,24 +143,28 @@ export default function StudentDashboard() {
     }
     loadDashboardData(curr);
 
-    // Real-time Cloud Sync
-    mockDB.syncFromCloud(true).then(() => {
-      const freshUser = mockDB.getCurrentUser() || curr;
-      loadDashboardData(freshUser);
+    // Real-time Cloud Sync & Status Check
+    mockDB.checkPaymentStatusAsync(curr.participantId || curr.id).then(() => {
+      mockDB.syncFromCloud(true).then(() => {
+        const freshUser = mockDB.getCurrentUser() || curr;
+        loadDashboardData(freshUser);
+      });
     });
 
-    // Auto-poll cloud every 8 seconds while payment is pending so user screen unlocks automatically
+    // Auto-poll cloud every 6 seconds while payment is pending so user screen unlocks automatically
     const pollInterval = setInterval(() => {
       const activeUser = mockDB.getCurrentUser();
       if (activeUser && !isPaymentVerified(activeUser)) {
-        mockDB.syncFromCloud(true).then(() => {
-          const freshUser = mockDB.getCurrentUser();
-          if (freshUser) {
-            loadDashboardData(freshUser);
-          }
+        mockDB.checkPaymentStatusAsync(activeUser.participantId || activeUser.id).then(() => {
+          mockDB.syncFromCloud(true).then(() => {
+            const freshUser = mockDB.getCurrentUser();
+            if (freshUser) {
+              loadDashboardData(freshUser);
+            }
+          });
         });
       }
-    }, 8000);
+    }, 6000);
 
     return () => clearInterval(pollInterval);
   }, []);
@@ -281,6 +298,7 @@ export default function StudentDashboard() {
     const curr = mockDB.getCurrentUser();
     if (curr) {
       loadDashboardData(curr);
+      await mockDB.checkPaymentStatusAsync(curr.participantId || curr.id);
     }
     await mockDB.syncFromCloud(true);
     const freshUser = mockDB.getCurrentUser() || curr;
@@ -331,6 +349,7 @@ export default function StudentDashboard() {
 
     let activeUser = user;
     if (!isPaymentVerified(activeUser)) {
+      await mockDB.checkPaymentStatusAsync(activeUser.participantId || activeUser.id);
       await mockDB.syncFromCloud(true);
       const fresh = mockDB.getCurrentUser();
       if (fresh) {
@@ -368,6 +387,7 @@ export default function StudentDashboard() {
 
     let activeUser = user;
     if (!isPaymentVerified(activeUser)) {
+      await mockDB.checkPaymentStatusAsync(activeUser.participantId || activeUser.id);
       await mockDB.syncFromCloud(true);
       const fresh = mockDB.getCurrentUser();
       if (fresh) {
@@ -415,6 +435,7 @@ export default function StudentDashboard() {
 
     let activeUser = user;
     if (!isPaymentVerified(activeUser)) {
+      await mockDB.checkPaymentStatusAsync(activeUser.participantId || activeUser.id);
       await mockDB.syncFromCloud(true);
       const fresh = mockDB.getCurrentUser();
       if (fresh) {

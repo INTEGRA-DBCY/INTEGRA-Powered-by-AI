@@ -24,14 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let authenticatedUser: {
-      id: string;
-      email: string;
-      name: string;
-      role: string;
-      department?: string;
-      phone?: string;
-    } | null = null;
+    let authenticatedUser: any = null;
 
     const inputHash = await sha256Async(loginPassword);
 
@@ -45,13 +38,27 @@ export async function POST(req: NextRequest) {
           const storedPass = String(data.password || "");
           const storedHash = /^[a-f0-9]{64}$/i.test(storedPass) ? storedPass.toLowerCase() : await sha256Async(storedPass);
           if (storedHash === inputHash.toLowerCase()) {
+            const isVerified = (data.paymentStatus || "").toLowerCase() === "verified" || (data.paymentStatus || "").toLowerCase() === "paid";
             authenticatedUser = {
               id: directDoc.id,
+              participantId: data.participantId || directDoc.id,
+              registrationId: data.registrationId || "",
               email: data.email || loginIdentifier,
               name: data.name || "User",
               role: data.role || "student",
-              department: data.department,
-              phone: data.phone
+              roles: Array.isArray(data.roles) && data.roles.length > 0 ? data.roles : [data.role || "student"],
+              department: data.department || "",
+              phone: data.phone || "",
+              college: data.college || "",
+              shift: data.shift || "",
+              year: data.year || "",
+              gender: data.gender || "",
+              photoUrl: data.photoUrl || "",
+              paymentStatus: isVerified ? "Verified" : (data.paymentStatus || "Pending"),
+              paymentDetails: data.paymentDetails || null,
+              registeredEvents: Array.isArray(data.registeredEvents) ? data.registeredEvents : [],
+              achievements: Array.isArray(data.achievements) ? data.achievements : [],
+              isFirstLogin: Boolean(data.isFirstLogin)
             };
           }
         }
@@ -80,13 +87,27 @@ export async function POST(req: NextRequest) {
                   const storedHash = /^[a-f0-9]{64}$/i.test(storedPass) ? storedPass.toLowerCase() : await sha256Async(storedPass);
                   if (storedHash === inputHash.toLowerCase()) {
                     const resolvedRole = data.role || (collName === "volunteers" ? "volunteer" : collName === "participants" ? "student" : (isServerStaff(loginIdentifier) ? "admin" : "student"));
+                    const isVerified = (data.paymentStatus || "").toLowerCase() === "verified" || (data.paymentStatus || "").toLowerCase() === "paid";
                     authenticatedUser = {
                       id: d.id,
+                      participantId: data.participantId || d.id,
+                      registrationId: data.registrationId || "",
                       email: data.email || loginIdentifier,
                       name: data.name || "User",
                       role: resolvedRole,
-                      department: data.department,
-                      phone: data.phone
+                      roles: Array.isArray(data.roles) && data.roles.length > 0 ? data.roles : [resolvedRole],
+                      department: data.department || "",
+                      phone: data.phone || "",
+                      college: data.college || "",
+                      shift: data.shift || "",
+                      year: data.year || "",
+                      gender: data.gender || "",
+                      photoUrl: data.photoUrl || "",
+                      paymentStatus: isVerified ? "Verified" : (data.paymentStatus || "Pending"),
+                      paymentDetails: data.paymentDetails || null,
+                      registeredEvents: Array.isArray(data.registeredEvents) ? data.registeredEvents : [],
+                      achievements: Array.isArray(data.achievements) ? data.achievements : [],
+                      isFirstLogin: Boolean(data.isFirstLogin)
                     };
                     break;
                   }
@@ -96,6 +117,39 @@ export async function POST(req: NextRequest) {
             } catch (collErr) {
               console.warn(`Query error in ${collName}:`, collErr);
             }
+          }
+        }
+
+        // 1.3 Cross-collection Payment Status Verification
+        // If student is marked Pending, check both users and participants collections by participantId and id
+        if (authenticatedUser && authenticatedUser.role === "student" && authenticatedUser.paymentStatus !== "Verified") {
+          try {
+            const pId = authenticatedUser.participantId || authenticatedUser.id;
+            const docRefs = [
+              getDoc(doc(db, "participants", pId)),
+              getDoc(doc(db, "users", pId))
+            ];
+            if (authenticatedUser.id && authenticatedUser.id !== pId) {
+              docRefs.push(getDoc(doc(db, "participants", authenticatedUser.id)));
+              docRefs.push(getDoc(doc(db, "users", authenticatedUser.id)));
+            }
+            const results = await Promise.allSettled(docRefs);
+            for (const r of results) {
+              if (r.status === "fulfilled" && r.value?.exists()) {
+                const pDocData: any = r.value.data();
+                const pVerified = (pDocData?.paymentStatus || "").toLowerCase() === "verified" || (pDocData?.paymentStatus || "").toLowerCase() === "paid";
+                if (pVerified) {
+                  authenticatedUser.paymentStatus = "Verified";
+                  authenticatedUser.paymentDetails = pDocData.paymentDetails || authenticatedUser.paymentDetails;
+                  if (Array.isArray(pDocData.registeredEvents) && pDocData.registeredEvents.length > 0) {
+                    authenticatedUser.registeredEvents = Array.from(new Set([...authenticatedUser.registeredEvents, ...pDocData.registeredEvents]));
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (crossCheckErr) {
+            console.warn("Cross-check payment warning:", crossCheckErr);
           }
         }
       } catch (firestoreErr) {
@@ -130,14 +184,7 @@ export async function POST(req: NextRequest) {
     const isProd = process.env.NODE_ENV === "production";
     const response = NextResponse.json({
       success: true,
-      user: {
-        id: authenticatedUser.id,
-        email: authenticatedUser.email,
-        name: authenticatedUser.name,
-        role: authenticatedUser.role,
-        department: authenticatedUser.department,
-        phone: authenticatedUser.phone
-      },
+      user: authenticatedUser,
       message: "Authentication successful."
     });
 

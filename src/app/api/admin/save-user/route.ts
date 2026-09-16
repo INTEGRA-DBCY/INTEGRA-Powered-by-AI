@@ -44,6 +44,18 @@ const ALLOWED_USER_FIELDS = new Set([
   "assignedStallId",
   "assignedStallName",
   "paymentStatus",
+  "paymentDetails",
+  "paymentRejectionReason",
+  "paymentVerifiedAt",
+  "paymentVerifiedBy",
+  "paymentAmount",
+  "utr",
+  "transactionId",
+  "upiId",
+  "isVerified",
+  "paymentProof",
+  "paymentScreenshot",
+  "screenshot",
   "registrationStatus",
   "checkInStatus",
   "foodStatus",
@@ -101,6 +113,10 @@ function cleanUserPayload(raw: any): Record<string, any> {
           .filter(r => VALID_ROLES.has(r));
       } else if (key === "registeredEvents" || key === "achievements" || key === "badges") {
         cleaned[key] = val.filter(item => item !== undefined && item !== null);
+      }
+    } else if (typeof val === "object" && val !== null) {
+      if (key === "paymentDetails" || key === "volunteerDuty") {
+        cleaned[key] = val;
       }
     }
   }

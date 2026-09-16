@@ -122,27 +122,41 @@ export const firebaseService = {
             ? "Rejected"
             : "Pending";
 
-        const merged = existing ? {
-          ...existing,
-          ...u,
-          id: existing.id || u.id,
-          participantId: existing.participantId || u.participantId,
-          registrationId: existing.registrationId || u.registrationId,
-          role: u.role || existing.role,
-          volunteerDuty: u.volunteerDuty || existing.volunteerDuty,
-          paymentStatus,
-          paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
-          registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
-          achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
-        } : {
-          ...u,
-          paymentStatus
-        };
+        if (existing) {
+          const oldEmail = (existing.email || "").toLowerCase().trim();
+          const oldPid = (existing.participantId || "").toLowerCase().trim();
+          const oldId = (existing.id || "").toLowerCase().trim();
+          const oldReg = (existing.registrationId || "").toLowerCase().trim();
 
-        // Cross-index under all known identifiers
-        if (emailKey) userMap.set(emailKey, merged);
-        if (pidKey) userMap.set(pidKey, merged);
-        if (idKey) userMap.set(idKey, merged);
+          Object.assign(existing, {
+            ...u,
+            id: existing.id || u.id,
+            participantId: existing.participantId || u.participantId,
+            registrationId: existing.registrationId || u.registrationId,
+            role: u.role || existing.role,
+            volunteerDuty: u.volunteerDuty || existing.volunteerDuty,
+            paymentStatus,
+            paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
+            registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
+            achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
+          });
+
+          if (oldEmail) userMap.set(oldEmail, existing);
+          if (oldPid) userMap.set(oldPid, existing);
+          if (oldId) userMap.set(oldId, existing);
+          if (oldReg) userMap.set(oldReg, existing);
+          if (emailKey) userMap.set(emailKey, existing);
+          if (pidKey) userMap.set(pidKey, existing);
+          if (idKey) userMap.set(idKey, existing);
+        } else {
+          const created = {
+            ...u,
+            paymentStatus
+          };
+          if (emailKey) userMap.set(emailKey, created);
+          if (pidKey) userMap.set(pidKey, created);
+          if (idKey) userMap.set(idKey, created);
+        }
       };
 
       for (const u of userList) mergeUserRecord(u);

@@ -1671,6 +1671,82 @@ export const mockDB = {
     await firebaseService.saveUser(student as any);
   },
 
+  checkPaymentStatusAsync: async (userIdOrEmail: string): Promise<boolean> => {
+    if (!userIdOrEmail) return false;
+    const clean = userIdOrEmail.trim();
+
+    // 1. First check in-memory store
+    const memMatch = memoryStore.users.find(u =>
+      (u.id && u.id.toLowerCase() === clean.toLowerCase()) ||
+      (u.participantId && u.participantId.toLowerCase() === clean.toLowerCase()) ||
+      (u.email && u.email.toLowerCase() === clean.toLowerCase())
+    );
+    if (memMatch && ((memMatch.paymentStatus || "").toLowerCase() === "verified" || (memMatch.paymentStatus || "").toLowerCase() === "paid")) {
+      return true;
+    }
+
+    // 2. Query server endpoint directly from Firestore
+    try {
+      const res = await fetch(`/api/user/verify-status?id=${encodeURIComponent(clean)}&email=${encodeURIComponent(memMatch?.email || clean)}`, {
+        cache: "no-store"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.verified) {
+          // Propagate to all matching users in memoryStore and session
+          const pDetails = data.paymentDetails || {
+            txId: `OFFLINE-PAY-${Date.now()}`,
+            date: new Date().toLocaleDateString("en-IN"),
+            mode: "Cash",
+            verifiedBy: "Admin Desk",
+            remarks: "Verified at Registration Desk"
+          };
+
+          for (const u of memoryStore.users) {
+            const isMatch = (u.id && u.id.toLowerCase() === clean.toLowerCase()) ||
+                            (u.participantId && u.participantId.toLowerCase() === clean.toLowerCase()) ||
+                            (u.email && clean.includes("@") && u.email.toLowerCase() === clean.toLowerCase()) ||
+                            (memMatch?.email && u.email && u.email.toLowerCase() === memMatch.email.toLowerCase());
+            if (isMatch) {
+              u.paymentStatus = "Verified";
+              u.paymentDetails = pDetails;
+              delete (u as any).paymentRejectionReason;
+              u.achievements = Array.from(new Set([...(u.achievements || []), "Payment Verified"]));
+              if (Array.isArray(data.registeredEvents) && data.registeredEvents.length > 0) {
+                u.registeredEvents = Array.from(new Set([...(u.registeredEvents || []), ...data.registeredEvents]));
+              }
+            }
+          }
+
+          const curr = getSessionUser();
+          if (curr) {
+            const isCurr = (curr.id && curr.id.toLowerCase() === clean.toLowerCase()) ||
+                           (curr.participantId && curr.participantId.toLowerCase() === clean.toLowerCase()) ||
+                           (curr.email && clean.includes("@") && curr.email.toLowerCase() === clean.toLowerCase()) ||
+                           (memMatch?.email && curr.email && curr.email.toLowerCase() === memMatch.email.toLowerCase());
+            if (isCurr) {
+              const updatedCurr = {
+                ...curr,
+                paymentStatus: "Verified" as const,
+                paymentDetails: pDetails,
+                achievements: Array.from(new Set([...(curr.achievements || []), "Payment Verified"]))
+              };
+              setSessionUser(updatedCurr);
+              try { mockDB.generateFoodToken(updatedCurr); } catch {}
+            }
+          }
+
+          saveCloudSnapshotToLocalStorage();
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn("checkPaymentStatusAsync error:", e);
+    }
+
+    return false;
+  },
+
   // ── 5. EVENTS & SLOT CLASH PREVENTION ─────────────────────────────────────
   getMissions: (symposiumId?: string): Mission[] => {
     const targetSym = symposiumId || mockDB.getActiveSymposiumId();
@@ -3005,12 +3081,16 @@ export const mockDB = {
               if (pidKey) userMap.set(pidKey, created);
               if (idKey) userMap.set(idKey, created);
             } else {
+              const oldEmail = (existing.email || "").toLowerCase().trim();
+              const oldPid = (existing.participantId || "").toLowerCase().trim();
+              const oldId = (existing.id || "").toLowerCase().trim();
+              const oldReg = (existing.registrationId || "").toLowerCase().trim();
+
               const mergedRoles = Array.from(new Set([
                 ...(existing.roles || [existing.role]),
                 ...(u.roles || [u.role])
               ]));
-              const merged: User = {
-                ...existing,
+              Object.assign(existing, {
                 ...u,
                 id: existing.id || u.id,
                 participantId: existing.participantId || u.participantId,
@@ -3023,10 +3103,15 @@ export const mockDB = {
                 paymentDetails: isVerified ? (existing.paymentDetails || u.paymentDetails) : (u.paymentDetails || existing.paymentDetails),
                 registeredEvents: Array.from(new Set([...(existing.registeredEvents || []), ...(u.registeredEvents || [])])),
                 achievements: Array.from(new Set([...(existing.achievements || []), ...(u.achievements || [])]))
-              };
-              if (emailKey) userMap.set(emailKey, merged);
-              if (pidKey) userMap.set(pidKey, merged);
-              if (idKey) userMap.set(idKey, merged);
+              });
+
+              if (oldEmail) userMap.set(oldEmail, existing);
+              if (oldPid) userMap.set(oldPid, existing);
+              if (oldId) userMap.set(oldId, existing);
+              if (oldReg) userMap.set(oldReg, existing);
+              if (emailKey) userMap.set(emailKey, existing);
+              if (pidKey) userMap.set(pidKey, existing);
+              if (idKey) userMap.set(idKey, existing);
             }
           };
 
