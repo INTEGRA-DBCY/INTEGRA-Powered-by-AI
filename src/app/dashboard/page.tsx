@@ -407,27 +407,27 @@ export default function StudentDashboard() {
     }
 
     try {
-      mockDB.createTeam(createTeamModalEvent.id, teamNameInput.trim(), activeUser.participantId || activeUser.id);
+      const newTeam = await (mockDB as any).createTeamAsync(createTeamModalEvent.id, teamNameInput.trim(), activeUser.participantId || activeUser.id);
       setCreateTeamModalEvent(null);
       setTeamNameInput("");
+      setCreatedTeamSuccess(newTeam);
       await handleRefresh();
-      alert("Team created successfully! You are registered as Team Leader.");
     } catch (err: any) {
       setActionError(err.message || "Failed to create team.");
     }
   };
 
-  const handleInviteMemberSubmit = (e: React.FormEvent) => {
+  const handleInviteMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionError("");
     if (!user || !inviteMemberModalTeam || !inviteParticipantIdInput.trim()) return;
 
     try {
-      mockDB.inviteTeamMember(inviteMemberModalTeam.id, user.participantId || user.id, inviteParticipantIdInput.trim());
+      await (mockDB as any).inviteTeamMemberAsync(inviteMemberModalTeam.id, user.participantId || user.id, inviteParticipantIdInput.trim());
       setInviteMemberModalTeam(null);
       setInviteParticipantIdInput("");
-      handleRefresh();
-      alert("Team invitation sent to participant!");
+      await handleRefresh();
+      alert("Team invitation sent successfully to participant!");
     } catch (err: any) {
       setActionError(err.message || "Failed to send invitation.");
     }
@@ -455,7 +455,7 @@ export default function StudentDashboard() {
     }
 
     try {
-      mockDB.joinTeam(joinTargetInput.trim(), joinTeamModalEvent.id, activeUser.participantId || activeUser.id);
+      await (mockDB as any).joinTeamAsync(joinTargetInput.trim(), joinTeamModalEvent.id, activeUser.participantId || activeUser.id);
       setJoinTeamModalEvent(null);
       setJoinTargetInput("");
       await handleRefresh();
@@ -465,10 +465,10 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleRespondRequest = (reqId: string, accept: boolean) => {
+  const handleRespondRequest = async (reqId: string, accept: boolean) => {
     try {
-      mockDB.respondJoinRequest(reqId, accept);
-      handleRefresh();
+      await (mockDB as any).respondJoinRequestAsync(reqId, accept);
+      await handleRefresh();
       alert(accept ? "Member added to team!" : "Request rejected.");
     } catch (err: any) {
       alert(err.message || "Action failed.");
@@ -1627,6 +1627,13 @@ export default function StudentDashboard() {
               <div>⚠️ <strong>Department Rule:</strong> Only 1 team from 1 department of 1 college is allowed to register per event. All team members must belong to {user.department || "your department"} of {user.college || "your college"}.</div>
             </div>
 
+            {actionError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0 text-rose-600" />
+                <span>{actionError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleCreateTeamSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-700 font-mono text-[11px] font-bold uppercase tracking-wider mb-1.5">Team Name *</label>
@@ -1669,6 +1676,13 @@ export default function StudentDashboard() {
               Invite Member to {inviteMemberModalTeam.teamName}
             </h3>
             <p className="text-xs text-slate-700 font-sans">Enter the candidate&apos;s verified Participant ID (e.g. VIS-2026-0045) to send an invitation.</p>
+
+            {actionError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0 text-rose-600" />
+                <span>{actionError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleInviteMemberSubmit} className="space-y-4 text-xs">
               <div>
@@ -1716,6 +1730,13 @@ export default function StudentDashboard() {
             <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-950 font-mono font-bold">
               ℹ️ <strong>Category Track:</strong> Joining this team will count as your 1 {joinTeamModalEvent.category} event registration.
             </div>
+
+            {actionError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0 text-rose-600" />
+                <span>{actionError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleJoinTeamSubmit} className="space-y-4 text-xs">
               <div>

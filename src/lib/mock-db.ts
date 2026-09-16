@@ -2168,6 +2168,62 @@ export const mockDB = {
     return newTeam;
   },
 
+  createTeamAsync: async (teamDataOrMissionId: any, teamName?: string, leaderId?: string): Promise<Team> => {
+    const targetMissionId = typeof teamDataOrMissionId === "string" 
+      ? teamDataOrMissionId 
+      : (teamDataOrMissionId.missionId || teamDataOrMissionId.eventId);
+
+    const rawLeaderId = typeof teamDataOrMissionId === "string" 
+      ? (leaderId || "LEADER") 
+      : (teamDataOrMissionId.leaderId || leaderId || "LEADER");
+
+    const leaderUser = memoryStore.users.find(u => u.id === rawLeaderId || u.participantId === rawLeaderId);
+    const leaderIdClean = leaderUser ? (leaderUser.participantId || leaderUser.id) : rawLeaderId;
+    const cleanTeamName = (typeof teamDataOrMissionId === "string" ? teamName : (teamDataOrMissionId.teamName || teamDataOrMissionId.name)) || `${leaderUser?.name || "Participant"}'s Squad`;
+
+    try {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_team",
+          eventId: targetMissionId,
+          eventName: memoryStore.missions.find(m => m.id === targetMissionId)?.name || "Team Event",
+          teamName: cleanTeamName,
+          leaderId: leaderIdClean,
+          leaderName: leaderUser?.name || "Team Leader",
+          leaderCollege: leaderUser?.college || "",
+          leaderDept: leaderUser?.department || "",
+          leaderEmail: leaderUser?.email || ""
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create team.");
+      }
+
+      if (data.team) {
+        const existingIdx = memoryStore.teams.findIndex(t => t.id === data.team.id);
+        if (existingIdx >= 0) memoryStore.teams[existingIdx] = data.team;
+        else memoryStore.teams.push(data.team);
+
+        if (leaderUser && targetMissionId) {
+          const leaderEnrolled = leaderUser.registeredEvents || [];
+          if (!leaderEnrolled.includes(targetMissionId)) {
+            leaderUser.registeredEvents = [...leaderEnrolled, targetMissionId];
+            mockDB.updateUser(leaderUser);
+          }
+        }
+        return data.team;
+      }
+      return mockDB.createTeam(teamDataOrMissionId, teamName, leaderId);
+    } catch (err: any) {
+      if (err.message && !err.message.includes("fetch") && !err.message.includes("Failed to fetch")) throw err;
+      return mockDB.createTeam(teamDataOrMissionId, teamName, leaderId);
+    }
+  },
+
   inviteTeamMember: (teamId: string, leaderIdOrStudentId: string, maybeTargetStudentId?: string) => {
     const rawTarget = (maybeTargetStudentId ? maybeTargetStudentId : leaderIdOrStudentId || "").trim();
     const cleanTarget = rawTarget.toLowerCase();
@@ -2185,12 +2241,30 @@ export const mockDB = {
     const teamCollege = team.college || leaderUser?.college || "";
     const teamDept = team.department || leaderUser?.department || "";
 
-    if (teamCollege && student.college && teamCollege.trim().toLowerCase() !== student.college.trim().toLowerCase()) {
-      throw new Error(`Team restriction: All team members must belong to the same college (${teamCollege}).`);
+    if (teamCollege && student.college) {
+      const tCol = teamCollege.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const sCol = student.college.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const match = tCol === sCol || 
+                    teamCollege.toLowerCase().includes(student.college.toLowerCase()) || 
+                    student.college.toLowerCase().includes(teamCollege.toLowerCase());
+      if (!match) {
+        throw new Error(`Team restriction: All team members must belong to the same college (${teamCollege}).`);
+      }
     }
 
-    if (teamDept && student.department && teamDept.trim().toLowerCase() !== student.department.trim().toLowerCase()) {
-      throw new Error(`Team restriction: All team members must belong to the same department (${teamDept}).`);
+    if (teamDept && student.department) {
+      const tDept = teamDept.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const sDept = student.department.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const match = tDept === sDept || 
+                    teamDept.toLowerCase().includes(student.department.toLowerCase()) || 
+                    student.department.toLowerCase().includes(teamDept.toLowerCase()) ||
+                    (tDept.includes("cs") && sDept.includes("cs")) ||
+                    (tDept.includes("comp") && sDept.includes("comp")) ||
+                    (tDept.includes("it") && sDept.includes("it")) ||
+                    (tDept.includes("ai") && sDept.includes("ai"));
+      if (!match) {
+        throw new Error(`Team restriction: All team members must belong to the same department (${teamDept}).`);
+      }
     }
 
     // Check if already in team
@@ -2231,6 +2305,39 @@ export const mockDB = {
     memoryStore.joinRequests.push(newRequest);
     mockDB.logActivity(team.leaderId, team.leaderName, "TEAM_INVITE_SENT", `Invited ${student.name} to join ${teamDisplayName}`);
     firebaseService.saveJoinRequest(newRequest);
+  },
+
+  inviteTeamMemberAsync: async (teamId: string, leaderIdOrStudentId: string, maybeTargetStudentId?: string) => {
+    const rawTarget = (maybeTargetStudentId ? maybeTargetStudentId : leaderIdOrStudentId || "").trim();
+    const cleanLeader = (maybeTargetStudentId ? leaderIdOrStudentId : "").trim();
+
+    try {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "invite_member",
+          teamId,
+          leaderId: cleanLeader,
+          targetParticipantId: rawTarget
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to invite member.");
+      }
+
+      if (data.request) {
+        const existingIdx = memoryStore.joinRequests.findIndex(r => r.id === data.request.id);
+        if (existingIdx >= 0) memoryStore.joinRequests[existingIdx] = data.request;
+        else memoryStore.joinRequests.push(data.request);
+      }
+      return data;
+    } catch (err: any) {
+      if (err.message && !err.message.includes("fetch") && !err.message.includes("Failed to fetch")) throw err;
+      return mockDB.inviteTeamMember(teamId, leaderIdOrStudentId, maybeTargetStudentId);
+    }
   },
 
   joinTeam: (teamCodeOrNameOrId: string, missionId: string, studentId: string) => {
@@ -2274,12 +2381,30 @@ export const mockDB = {
     const teamCollege = team.college || leaderUser?.college || "";
     const teamDept = team.department || leaderUser?.department || "";
 
-    if (teamCollege && student.college && teamCollege.trim().toLowerCase() !== student.college.trim().toLowerCase()) {
-      throw new Error(`Team restriction: All team members must belong to the same college (${teamCollege}).`);
+    if (teamCollege && student.college) {
+      const tCol = teamCollege.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const sCol = student.college.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const match = tCol === sCol || 
+                    teamCollege.toLowerCase().includes(student.college.toLowerCase()) || 
+                    student.college.toLowerCase().includes(teamCollege.toLowerCase());
+      if (!match) {
+        throw new Error(`Team restriction: All team members must belong to the same college (${teamCollege}).`);
+      }
     }
 
-    if (teamDept && student.department && teamDept.trim().toLowerCase() !== student.department.trim().toLowerCase()) {
-      throw new Error(`Team restriction: All team members must belong to the same department (${teamDept}).`);
+    if (teamDept && student.department) {
+      const tDept = teamDept.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const sDept = student.department.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const match = tDept === sDept || 
+                    teamDept.toLowerCase().includes(student.department.toLowerCase()) || 
+                    student.department.toLowerCase().includes(teamDept.toLowerCase()) ||
+                    (tDept.includes("cs") && sDept.includes("cs")) ||
+                    (tDept.includes("comp") && sDept.includes("comp")) ||
+                    (tDept.includes("it") && sDept.includes("it")) ||
+                    (tDept.includes("ai") && sDept.includes("ai"));
+      if (!match) {
+        throw new Error(`Team restriction: All team members must belong to the same department (${teamDept}).`);
+      }
     }
 
     const targetMissionId = team.missionId || team.eventId || missionId;
@@ -2324,6 +2449,36 @@ export const mockDB = {
     firebaseService.saveJoinRequest(newRequest);
   },
 
+  joinTeamAsync: async (teamCodeOrNameOrId: string, missionId: string, studentId: string) => {
+    try {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "join_team",
+          searchTarget: teamCodeOrNameOrId,
+          eventId: missionId,
+          studentId
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to join team.");
+      }
+
+      if (data.request) {
+        const existingIdx = memoryStore.joinRequests.findIndex(r => r.id === data.request.id);
+        if (existingIdx >= 0) memoryStore.joinRequests[existingIdx] = data.request;
+        else memoryStore.joinRequests.push(data.request);
+      }
+      return data;
+    } catch (err: any) {
+      if (err.message && !err.message.includes("fetch") && !err.message.includes("Failed to fetch")) throw err;
+      return mockDB.joinTeam(teamCodeOrNameOrId, missionId, studentId);
+    }
+  },
+
   getJoinRequests: (studentIdOrPartId: string) => {
     const clean = (studentIdOrPartId || "").trim().toLowerCase();
     const studentUser = memoryStore.users.find(u => 
@@ -2354,7 +2509,8 @@ export const mockDB = {
                         rStudentPartId === userId || rStudentPartId === partId;
 
       // Incoming join request sent to a team led by this user
-      const isLeaderOfTeam = ledTeamIds.has(r.teamId);
+      const rLeaderId = (r.leaderId || "").toLowerCase();
+      const isLeaderOfTeam = ledTeamIds.has(r.teamId) || (rLeaderId && (rLeaderId === userId || rLeaderId === partId));
 
       return isInvited || isLeaderOfTeam;
     });
@@ -2406,6 +2562,16 @@ export const mockDB = {
           if (!userEnrolled.includes(targetMissionId)) {
             studentUser.registeredEvents = [...userEnrolled, targetMissionId];
             mockDB.updateUser(studentUser);
+            // Also call save-events API to guarantee server persistence
+            fetch("/api/user/save-events", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                studentId: studentUser.id,
+                participantId: studentUser.participantId,
+                registeredEvents: studentUser.registeredEvents
+              })
+            }).catch(console.error);
           }
         }
       }
@@ -2415,6 +2581,31 @@ export const mockDB = {
 
   respondJoinRequest: (requestId: string, accept: boolean) => {
     mockDB.respondToTeamInvitation(requestId, accept);
+  },
+
+  respondJoinRequestAsync: async (requestId: string, accept: boolean) => {
+    try {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "respond_request",
+          requestId,
+          accept
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to respond to request.");
+      }
+
+      mockDB.respondToTeamInvitation(requestId, accept);
+      return data;
+    } catch (err: any) {
+      if (err.message && !err.message.includes("fetch") && !err.message.includes("Failed to fetch")) throw err;
+      return mockDB.respondToTeamInvitation(requestId, accept);
+    }
   },
 
   // ── 7. FOOD & DINING TOKENS ───────────────────────────────────────────────
@@ -3224,6 +3415,9 @@ export const mockDB = {
         // 4. Teams & Requests
         if (Array.isArray(data.teams)) {
           memoryStore.teams = data.teams.filter(t => !deletedIds.has(t.id));
+        }
+        if (Array.isArray((data as any).requests)) {
+          memoryStore.joinRequests = (data as any).requests.filter((r: any) => !deletedIds.has(r.id));
         }
 
         // 5. Refreshments
